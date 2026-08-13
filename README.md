@@ -26,11 +26,11 @@ O objetivo do StudyFlow é proporcionar aos estudantes uma ferramenta que facili
 
 
 
-- SpringBoot 
+- SpringBoot - Version: 4.1.0
 
-- Java
+- Java - Version: 25.0.4
 
-- MySQL
+- MySQL 
 
 
 
@@ -45,10 +45,8 @@ O objetivo do StudyFlow é proporcionar aos estudantes uma ferramenta que facili
 - GitHub
 
 - GitHub Projects
-
-- NPM
   
-- Maven
+- Maven - Version: 3.9.16
   
 
 
