@@ -1,5 +1,6 @@
 package com.edu.StudyFlow.controller;
 
+import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
 import com.edu.StudyFlow.service.UserService;
 import jakarta.validation.Valid;
@@ -38,10 +39,27 @@ public class UserController {
      * @RequestBody: converte o JSON recebido no corpo da requisicao
      * automaticamente para um objeto UserCadastroValidation.
      */
-    @PostMapping
+    @PostMapping("/cadastro")
     public String criarUsuario(@Valid @RequestBody UserCadastroValidation userValidation){
         userService.salvarUser(userValidation);
         return "Usuario criado com sucesso";
+    }
+    /*
+     * Recebe os dados (email e senha) para validacao do login.
+     *
+     * @RequestBody Pega o parametro do body do request
+     * que vem em forma de json, e converte para um obj Java.
+     */
+    @PostMapping("/login")
+    public String login (@RequestBody UserCadastroValidation userValidation){
+        // chama o metodo para validar o usuario.
+        boolean validar = userService.validarLogin(userValidation.getEmail(),userValidation.getSenha());
+        // verrifica se o usuario e valido.
+        if (!validar) {
+            throw new RequisicaoInvalidaException("Email ou senha invalida");
+        }
+        return "Login efetuado com sucesso";
+
     }
 
 }
