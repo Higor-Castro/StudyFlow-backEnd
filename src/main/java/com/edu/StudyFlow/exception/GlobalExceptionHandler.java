@@ -51,8 +51,8 @@ public class GlobalExceptionHandler {
         // Faz o put dos erros
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("error", "erro interno do Servidor");
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("error", "requisicao invalida");
         body.put("message", ex.getMessage());
         // envia o erro no formato json
         return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);

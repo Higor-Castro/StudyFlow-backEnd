@@ -9,7 +9,8 @@ import org.springframework.stereotype.Service;
 
 /*
  * Service tem o papel de concentrar
- * a logica da aplicacao.
+ * a logica da aplicacao, onde o foco dessa classe e a
+ * logica voltada ao usuario.
  *
  * @Service indica que esta classe contem
  * a logica de negocio da aplicacao.

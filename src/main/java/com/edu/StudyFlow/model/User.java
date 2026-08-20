@@ -3,7 +3,7 @@ package com.edu.StudyFlow.model;
 import jakarta.persistence.*;
 
 /*
- * Cada objeto da classe User será armazenado como um registro na tabela.
+ * Representa a tabela de users no banco de dados.
  *
  * @Entity informa ao Spring Data JPA que esta classe
  * representa uma entidade do banco de dados.

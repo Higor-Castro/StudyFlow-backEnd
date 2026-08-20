@@ -13,18 +13,18 @@ public class UserCadastroValidation {
 
     //@NotBlank garante que o campo nao seja nulo,vazio ou so espacos.
 
-    @NotBlank(message = "O username e obrigatorio")
+    @NotBlank(message = "O username e obrigatório")
     private String username;
 
-    @NotBlank(message = "A senha e obrigatoria")
+    @NotBlank(message = "A senha e obrigatória")
     //@Size serve para definar o tamanho minimo ou maximo do campo.
-    @Size(min = 6, message = "A senha deve ter no minimo 6 caracteres")
+    @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres")
     private String senha;
 
-    @NotBlank(message = "A confirmacao de senha e obrigatoria")
+    @NotBlank(message = "A confirmação de senha e obrigatória")
     private String senhaComparar;
 
-    @NotBlank(message = "O email e obrigatorio")
+    @NotBlank(message = "O email e obrigatório")
     //@Email valida se o campo esta em um formato de email valido.
     @Email(message = "Email invalido")
     private String email;

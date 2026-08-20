@@ -1,10 +1,16 @@
 package com.edu.StudyFlow.controller;
 
 import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
+import com.edu.StudyFlow.model.Log;
+import com.edu.StudyFlow.service.LogService;
+import com.edu.StudyFlow.service.TwoFAService;
+import com.edu.StudyFlow.validation.TwoFAValidation;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
 import com.edu.StudyFlow.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 /*
  * Controller responsavel por receber as requisicoes
@@ -21,10 +27,14 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private UserService userService;
+    private TwoFAService twoFAService;
+    private LogService logService;
 
     // Injecao do service via construtor
-    public UserController(UserService userService) {
+    public UserController(UserService userService, TwoFAService twoFAService, LogService logService) {
         this.userService = userService;
+        this.twoFAService = twoFAService;
+        this.logService = logService;
     }
 
 
@@ -41,11 +51,25 @@ public class UserController {
      */
     @PostMapping("/cadastro")
     public String criarUsuario(@Valid @RequestBody UserCadastroValidation userValidation){
-        userService.salvarUser(userValidation);
-        return "Usuario criado com sucesso";
+        String msg = "";
+        try {
+            msg = "Usuário criado com sucesso";
+            // salva o usuario no banco.
+            userService.salvarUser(userValidation);
+            // salva os logs na tabela
+            Log log = new Log("CADASTRO_SUCESSO", userValidation.getEmail(), msg, LocalDateTime.now());
+            logService.salvarLog(log);
+            return msg;
+        }catch (RequisicaoInvalidaException e) {
+            // salva os logs na tabela
+            Log log = new Log("CADASTRO_FALHA", userValidation.getEmail(), "CADASTRO FALHA: " + e.getMessage(), LocalDateTime.now());
+            logService.salvarLog(log);
+            // Devolve a excecao para o ExceptionHandler.
+            throw e;
+        }
     }
     /*
-     * Recebe os dados (email e senha) para validacao do login.
+     * Recebe os dados (email e senha) para validacao do login e geracao do 2FA.
      *
      * @RequestBody Pega o parametro do body do request
      * que vem em forma de json, e converte para um obj Java.
@@ -56,10 +80,33 @@ public class UserController {
         boolean validar = userService.validarLogin(userValidation.getEmail(),userValidation.getSenha());
         // verrifica se o usuario e valido.
         if (!validar) {
+            // salva os logs na tabela
+            Log log = new Log("LOGIN_FALHA", userValidation.getEmail(), "Email ou senha invalida", LocalDateTime.now());
+            logService.salvarLog(log);
             throw new RequisicaoInvalidaException("Email ou senha invalida");
         }
-        return "Login efetuado com sucesso";
+        // chama o metodo para gerar o codigo autentificacao 2FA.
+        twoFAService.gerarCodigo(userValidation.getEmail());
+        // salva os logs na tabela
+        Log log = new Log("LOGIN_SUCESSO", userValidation.getEmail(), "Email e senha correta 2FA enviado", LocalDateTime.now());
+        logService.salvarLog(log);
+        return "Email e senha correta. Verifique o código de 2 Fatores";
+    }
 
+    // Segunda etapa do login, valida o codigo de 2FA
+    @PostMapping("/login/2fa")
+    public String loginTwoFA(@Valid @RequestBody TwoFAValidation twoFAValidation){
+        // chama o metodo para validar o codigo informado
+        boolean validar = twoFAService.validarCodigo(twoFAValidation.getEmail(),twoFAValidation.getCodigo());
+        // varrifica se o codigo e valido.
+        if (!validar) {
+            Log log = new Log("LOGIN_2FA_FALHA", twoFAValidation.getEmail(), "Codigo invalido ou expirado", LocalDateTime.now());
+            logService.salvarLog(log);
+            throw new RequisicaoInvalidaException("Codigo invalido ou expirado");
+        }
+        Log log = new Log("LOGIN_2FA_SUCESSO", twoFAValidation.getEmail(), "2FA Correto", LocalDateTime.now());
+        logService.salvarLog(log);
+        return "login confirmado com sucesso";
     }
 
 }
