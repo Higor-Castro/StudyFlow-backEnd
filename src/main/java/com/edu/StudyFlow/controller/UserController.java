@@ -3,6 +3,7 @@ package com.edu.StudyFlow.controller;
 import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.Log;
 import com.edu.StudyFlow.service.LogService;
+import com.edu.StudyFlow.service.LoginTimeService;
 import com.edu.StudyFlow.service.TwoFAService;
 import com.edu.StudyFlow.validation.TwoFAValidation;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
@@ -29,12 +30,14 @@ public class UserController {
     private UserService userService;
     private TwoFAService twoFAService;
     private LogService logService;
+    private LoginTimeService loginTimeService;
 
     // Injecao do service via construtor
-    public UserController(UserService userService, TwoFAService twoFAService, LogService logService) {
+    public UserController(UserService userService, TwoFAService twoFAService, LogService logService, LoginTimeService loginTimeService) {
         this.userService = userService;
         this.twoFAService = twoFAService;
         this.logService = logService;
+        this.loginTimeService = loginTimeService;
     }
 
 
@@ -76,15 +79,25 @@ public class UserController {
      */
     @PostMapping("/login")
     public String login (@RequestBody UserCadastroValidation userValidation){
+        // chama o metodo para validar se o email esta bloqueado.
+        boolean validarBloqueio = loginTimeService.estaBloqueado(userValidation.getEmail());
+        if(validarBloqueio) {
+            throw new RequisicaoInvalidaException("Login esta bloqueado, aguarde o tempo de expiração");
+        }
         // chama o metodo para validar o usuario.
-        boolean validar = userService.validarLogin(userValidation.getEmail(),userValidation.getSenha());
+        boolean validarUsuario = userService.validarLogin(userValidation.getEmail(),userValidation.getSenha());
         // verrifica se o usuario e valido.
-        if (!validar) {
+        if (!validarUsuario) {
+            // registra tentativa errada para o calculo do bloqueio
+            loginTimeService.registrarFalhaLogin(userValidation.getEmail());
             // salva os logs na tabela
             Log log = new Log("LOGIN_FALHA", userValidation.getEmail(), "Email ou senha invalida", LocalDateTime.now());
             logService.salvarLog(log);
             throw new RequisicaoInvalidaException("Email ou senha invalida");
         }
+        // Login valido reseta o historico de tentativas erradas
+        loginTimeService.retirarBloqueio(userValidation.getEmail());
+
         // chama o metodo para gerar o codigo autentificacao 2FA.
         twoFAService.gerarCodigo(userValidation.getEmail());
         // salva os logs na tabela

@@ -55,7 +55,7 @@ public class GlobalExceptionHandler {
         body.put("error", "requisicao invalida");
         body.put("message", ex.getMessage());
         // envia o erro no formato json
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
 }
