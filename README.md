@@ -41,6 +41,8 @@ O objetivo do StudyFlow é proporcionar aos estudantes uma ferramenta que facili
   
 - Maven - Version: 3.9.16
 
+- Docker - Containerização da aplicação
+
 
 ### Serviços
 
