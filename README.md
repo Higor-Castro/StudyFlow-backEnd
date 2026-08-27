@@ -24,21 +24,14 @@ O objetivo do StudyFlow é proporcionar aos estudantes uma ferramenta que facili
 
 ### Back End
 
-
-
 - SpringBoot - Version: 4.1.0
 
 - Java - Version: 25.0.4
 
-- MySQL 
-
-
-
+- PostgreSQL - Version: 18.6
 
 
 ### Ferramentas
-
-
 
 - Git
 
@@ -47,6 +40,14 @@ O objetivo do StudyFlow é proporcionar aos estudantes uma ferramenta que facili
 - GitHub Projects
   
 - Maven - Version: 3.9.16
+
+- Docker - Containerização da aplicação
+
+
+### Serviços
+
+- Render — Deploy e hospedagem do Back-end
+- Brevo — Envio de e-mails transacionais
   
 
 
