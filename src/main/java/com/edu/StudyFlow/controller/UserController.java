@@ -2,6 +2,8 @@ package com.edu.StudyFlow.controller;
 
 import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.Log;
+import com.edu.StudyFlow.model.TokenInvalidado;
+import com.edu.StudyFlow.security.JwtService;
 import com.edu.StudyFlow.service.LogService;
 import com.edu.StudyFlow.service.LoginTimeService;
 import com.edu.StudyFlow.service.TwoFAService;
@@ -12,6 +14,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /*
  * Controller responsavel por receber as requisicoes
@@ -31,13 +34,15 @@ public class UserController {
     private TwoFAService twoFAService;
     private LogService logService;
     private LoginTimeService loginTimeService;
+    private JwtService jwtService;
 
     // Injecao do service via construtor
-    public UserController(UserService userService, TwoFAService twoFAService, LogService logService, LoginTimeService loginTimeService) {
+    public UserController(UserService userService, TwoFAService twoFAService, LogService logService, LoginTimeService loginTimeService, JwtService jwtService) {
         this.userService = userService;
         this.twoFAService = twoFAService;
         this.logService = logService;
         this.loginTimeService = loginTimeService;
+        this.jwtService = jwtService;
     }
 
 
@@ -71,12 +76,8 @@ public class UserController {
             throw e;
         }
     }
-    /*
-     * Recebe os dados (email e senha) para validacao do login e geracao do 2FA.
-     *
-     * @RequestBody Pega o parametro do body do request
-     * que vem em forma de json, e converte para um obj Java.
-     */
+
+    //Recebe os dados (email e senha) para validacao do login e geracao do 2FA..
     @PostMapping("/login")
     public String login (@RequestBody UserCadastroValidation userValidation){
         // chama o metodo para validar se o email esta bloqueado.
@@ -108,18 +109,47 @@ public class UserController {
 
     // Segunda etapa do login, valida o codigo de 2FA
     @PostMapping("/login/2fa")
-    public String loginTwoFA(@Valid @RequestBody TwoFAValidation twoFAValidation){
+    public Map <String,String> loginTwoFA(@Valid @RequestBody TwoFAValidation twoFAValidation){
         // chama o metodo para validar o codigo informado
         boolean validar = twoFAService.validarCodigo(twoFAValidation.getEmail(),twoFAValidation.getCodigo());
         // varrifica se o codigo e valido.
         if (!validar) {
+            // salva os logs na tabela
             Log log = new Log("LOGIN_2FA_FALHA", twoFAValidation.getEmail(), "Codigo invalido ou expirado", LocalDateTime.now());
             logService.salvarLog(log);
             throw new RequisicaoInvalidaException("Codigo invalido ou expirado");
         }
+        // salva os logs na tabela
         Log log = new Log("LOGIN_2FA_SUCESSO", twoFAValidation.getEmail(), "2FA Correto", LocalDateTime.now());
         logService.salvarLog(log);
-        return "login confirmado com sucesso";
+        // Gera o JWT após o 2FA ser validado
+        String token = jwtService.gerarToken( twoFAValidation.getEmail());
+        return Map.of("mensagem", "Login realizado com sucesso",
+                      "token", token);
+    }
+     // Encerra a sessao do usuario (logout), invalidando o token JWT atual para que ele nao possa mais ser usado.
+    @PostMapping("/logout")
+    public String logout( @RequestHeader("Authorization") String authHeader) {
+        // Valida se o cabecalho veio no formato esperado
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new RequisicaoInvalidaException("Token não informado");
+        }
+        // Remove o prefixo "Bearer " para obter o token puro
+        String token = authHeader.substring(7);
+        String email = jwtService.extrairEmail(token);
+
+        // Marca o token como invalidado, impedindo seu uso futuro
+        jwtService.salvarLogout(token);
+
+        // salva os logs na tabela
+        Log log = new Log("LOGOUT_SUCESSO", email, "Sessao invalidada via logout", LocalDateTime.now());
+        logService.salvarLog(log);
+
+        return "Logout realizado com sucesso";
+    }
+    @PostMapping("/teste")
+    public String teste(@RequestHeader("Authorization") String authHeader) {
+        return "teste156";
     }
 
 }

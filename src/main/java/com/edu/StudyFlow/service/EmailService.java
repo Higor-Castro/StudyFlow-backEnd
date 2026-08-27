@@ -10,7 +10,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /*
- * Service responsavel por enviar emails atraves da API do Brevo,
+ * Service tem o papel de concentrar a logica da aplicacao,
+ * onde o papal e  enviar emails atraves da API do Brevo.
  * (plano gratuito do Render bloqueia smtp).
  *
  * @Service indica que esta classe contem
