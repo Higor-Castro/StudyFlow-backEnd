@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  */
 
 @Entity
-@Table(name = "tokensInvalidados")
+@Table(name = " tokens_invalidados")
 public class TokenInvalidado {
     // @Id Chave primária da tabela
     @Id
