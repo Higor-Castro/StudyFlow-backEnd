@@ -147,9 +147,5 @@ public class UserController {
 
         return "Logout realizado com sucesso";
     }
-    @PostMapping("/teste")
-    public String teste(@RequestHeader("Authorization") String authHeader) {
-        return "teste156";
-    }
 
 }
