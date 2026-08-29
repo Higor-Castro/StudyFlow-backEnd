@@ -27,7 +27,7 @@ public class JwtService {
     private final SecretKey chave;
     private final TokenInvalidadoRepository tokenInvalidadoRepository;
 
-    private static final long minutosExpirar = 5;
+    private static final long minutosExpirar = 30;
 
     // Gera a chave de assinatura a partir do application.properties
     public JwtService(@Value("${jwt.secret}") String secret, TokenInvalidadoRepository tokenInvalidadoRepository) {

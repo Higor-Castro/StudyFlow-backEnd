@@ -30,6 +30,10 @@ public class User {
     @Column (unique = true)
     private String email;
 
+    // Define o nivel de acesso do usuario, primeiro cadastro sempre USER.
+    @Column(nullable = false)
+    private String nivel = "USER";
+
     // Construtor vazio
     public User() {
     }
@@ -61,5 +65,11 @@ public class User {
     }
     public void setEmail(String email) {
         this.email = email;
+    }
+    public String getNivel() {
+        return nivel;
+    }
+    public void setNivel(String nivel) {
+        this.nivel = nivel;
     }
 }
