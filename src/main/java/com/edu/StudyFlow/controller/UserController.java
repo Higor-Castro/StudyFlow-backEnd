@@ -148,4 +148,9 @@ public class UserController {
         return "Logout realizado com sucesso";
     }
 
+    // validar a secao do user
+    @GetMapping("/validar")
+    public String validar() {
+        return "Token válido";
+    }
 }

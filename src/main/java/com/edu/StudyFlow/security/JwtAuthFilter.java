@@ -1,5 +1,6 @@
 package com.edu.StudyFlow.security;
 
+import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.TokenInvalidado;
 import com.edu.StudyFlow.repository.TokenInvalidadoRepository;
 import jakarta.servlet.FilterChain;
@@ -67,13 +68,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (LocalDateTime.now().isAfter(tokenInvalidado.get().getDataExpiracao())) {
                 tokenInvalidadoRepository.delete(tokenInvalidado.get());
             }
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            // mensagen de erro personalizada
+            escreverErro(response, "Token invalido, faça login novamente");
             return;
         }
 
         // JWT expirado ou inválido
         if (!jwtService.tokenValido(token)) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            escreverErro(response, "Sessão expirada, faça login novamente");
             return;
         }
         // extrai o email do token e busca os dados do usuario
@@ -88,5 +90,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         // continua o fluxo normal da requisicao
         filterChain.doFilter(request, response);
+    }
+
+    /*
+     * Escreve uma resposta de erro em JSON, no mesmo formato usado
+     * pelo GlobalExceptionHandler, ja que aqui (dentro do filtro)
+     * ele nao consegue interceptar a excecao.
+     */
+    private void escreverErro(HttpServletResponse response, String mensagem) throws IOException {
+        // configuaracao da resposta
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+
+        // corpo da mensagem
+        String json = String.format("{\"timestamp\":\"%s\",\"status\":401,\"error\":\"token invalido\",\"message\":\"%s\"}",LocalDateTime.now(), mensagem);
+
+        response.getWriter().write(json);
     }
 }

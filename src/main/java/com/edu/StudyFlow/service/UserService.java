@@ -4,6 +4,7 @@ import com.edu.StudyFlow.validation.UserCadastroValidation;
 import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.User;
 import com.edu.StudyFlow.repository.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -39,7 +40,13 @@ public class UserService {
 
         // Salva os dados do usuario validado com o hash e o salt implementado.
         User user = new User(userValidation.getUsername(), senhaHash, userValidation.getEmail());
-        userRepository.save(user);
+        // valida se o email ja esta cadastrado.
+        try {
+            userRepository.save(user);
+        }catch (DataIntegrityViolationException e) {
+            throw new RequisicaoInvalidaException("Email já cadastrado");
+        }
+
     }
 
     // valida se o usuario realmente existe.
