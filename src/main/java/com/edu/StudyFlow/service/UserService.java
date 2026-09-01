@@ -54,4 +54,17 @@ public class UserService {
         User user = userRepository.findByEmail(email).orElseThrow(()-> new RequisicaoInvalidaException("Email ou senha Invalida"));
         return passwordEncoder.matches(senha, user.getPassword());
     }
+    // valida as senhas e atualiza ela se o email existir
+    public void redefinirSenha (String email, String senha, String confirmaSenha) {
+        // validade se as senhas batem
+        if (!senha.equals(confirmaSenha)) {
+            throw new RequisicaoInvalidaException("As senhas não coincidem");
+        }
+        // procura o email no banco
+        User user = userRepository.findByEmail(email).orElseThrow(()-> new RequisicaoInvalidaException("Usuário não encontrado"));
+
+        // salva a nova senha
+        user.setPassword(passwordEncoder.encode(senha));
+        userRepository.save(user);
+    }
 }

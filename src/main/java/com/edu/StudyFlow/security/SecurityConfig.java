@@ -43,7 +43,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Rotas publicas: cadastro e as duas etapas do login
-                        .requestMatchers("/users/cadastro", "/users/login", "/users/login/2fa").permitAll()
+                        .requestMatchers("/users/cadastro", "/users/login", "/users/login/2fa", "/users/senha/redefinir").permitAll()
                         // Rotas de admin: exigem usuario com nivel ADMIN, tambem precisa do jwt
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         // todas as demais rotas exigem apenas estar autenticado

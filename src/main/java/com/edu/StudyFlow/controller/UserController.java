@@ -4,12 +4,10 @@ import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.Log;
 import com.edu.StudyFlow.model.TokenInvalidado;
 import com.edu.StudyFlow.security.JwtService;
-import com.edu.StudyFlow.service.LogService;
-import com.edu.StudyFlow.service.LoginTimeService;
-import com.edu.StudyFlow.service.TwoFAService;
+import com.edu.StudyFlow.service.*;
+import com.edu.StudyFlow.validation.RedefinirSenhaValidation;
 import com.edu.StudyFlow.validation.TwoFAValidation;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
-import com.edu.StudyFlow.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,14 +33,17 @@ public class UserController {
     private LogService logService;
     private LoginTimeService loginTimeService;
     private JwtService jwtService;
+    private RedefinirSenhaService redefinirSenhaService;
 
     // Injecao do service via construtor
-    public UserController(UserService userService, TwoFAService twoFAService, LogService logService, LoginTimeService loginTimeService, JwtService jwtService) {
+    public UserController(UserService userService, TwoFAService twoFAService, LogService logService,
+                          LoginTimeService loginTimeService, JwtService jwtService, RedefinirSenhaService redefinirSenhaService) {
         this.userService = userService;
         this.twoFAService = twoFAService;
         this.logService = logService;
         this.loginTimeService = loginTimeService;
         this.jwtService = jwtService;
+        this.redefinirSenhaService = redefinirSenhaService;
     }
 
 
@@ -146,6 +147,15 @@ public class UserController {
         logService.salvarLog(log);
 
         return "Logout realizado com sucesso";
+    }
+
+    // Segunda etapa da recuperacao valida o token e redefine a senha
+    @PostMapping("/senha/redefinir")
+    public String recuperarSenha(@Valid @RequestBody RedefinirSenhaValidation redefinirSenhaValidation) {
+        // valida e recupera a senha
+        redefinirSenhaService.validarTokenSalvarSenha(redefinirSenhaValidation.getToken(),redefinirSenhaValidation.getEmail(),
+                                                      redefinirSenhaValidation.getSenha(),redefinirSenhaValidation.getSenhaComparar());
+        return "Senha redefinida com sucesso";
     }
 
     // validar a secao do user
