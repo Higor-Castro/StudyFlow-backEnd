@@ -2,7 +2,6 @@ package com.edu.StudyFlow.controller;
 
 import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.Log;
-import com.edu.StudyFlow.model.TokenInvalidado;
 import com.edu.StudyFlow.security.JwtService;
 import com.edu.StudyFlow.service.*;
 import com.edu.StudyFlow.validation.RedefinirSenhaValidation;
@@ -80,7 +79,7 @@ public class UserController {
 
     //Recebe os dados (email e senha) para validacao do login e geracao do 2FA..
     @PostMapping("/login")
-    public String login (@RequestBody UserCadastroValidation userValidation){
+    public String login (@Valid @RequestBody UserCadastroValidation userValidation){
         // chama o metodo para validar se o email esta bloqueado.
         boolean validarBloqueio = loginTimeService.estaBloqueado(userValidation.getEmail());
         if(validarBloqueio) {
@@ -147,6 +146,30 @@ public class UserController {
         logService.salvarLog(log);
 
         return "Logout realizado com sucesso";
+    }
+    // envia o token para email para recuperacao de senha
+    @PostMapping("/senha/recuperar")
+    public String solicitarRecuperacao(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        // envia o email para enviar o token.
+        redefinirSenhaService.enviarToken(email);
+        return "Token foi enviado para o email informado.";
+    }
+    // valida o token antes de redefinir a senha
+    @PostMapping("/senha/validar")
+    public String validarToken(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        String token = body.get("token");
+        // chama o metodo para validar o codigo informado
+        boolean validar = redefinirSenhaService.validarToken(email, token);
+        // varrifica se o codigo e valido.
+        if (!validar) {
+            // salva os logs na tabela
+            Log log = new Log("RECUPERACAO_CODIGO_FALHA", email, "Token invalido ou expirado", LocalDateTime.now());
+            logService.salvarLog(log);
+            throw new RequisicaoInvalidaException("Token invalido ou expirado");
+        }
+        return "Token valido";
     }
 
     // Segunda etapa da recuperacao valida o token e redefine a senha
