@@ -79,7 +79,7 @@ public class UserController {
 
     //Recebe os dados (email e senha) para validacao do login e geracao do 2FA..
     @PostMapping("/login")
-    public String login (@Valid @RequestBody UserCadastroValidation userValidation){
+    public String login (@RequestBody UserCadastroValidation userValidation){
         // chama o metodo para validar se o email esta bloqueado.
         boolean validarBloqueio = loginTimeService.estaBloqueado(userValidation.getEmail());
         if(validarBloqueio) {
