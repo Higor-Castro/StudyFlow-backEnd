@@ -20,11 +20,13 @@ import org.springframework.stereotype.Service;
 public class UserService {
     private UserRepository userRepository;
     private PasswordEncoder passwordEncoder;
+    private ConsentimentoService consentimentoService;
 
-    // Injecao do repository e do encoder via construtor.
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    // Injecao do repository,encoder e o service via construtor.
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, ConsentimentoService consentimentoService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.consentimentoService = consentimentoService;
     }
 
     // Valida a confirmacao de senha, gera o hash e salva o usuario.
@@ -42,7 +44,9 @@ public class UserService {
         User user = new User(userValidation.getUsername(), senhaHash, userValidation.getEmail());
         // valida se o email ja esta cadastrado.
         try {
+            // salva o user e o consentimento.
             userRepository.save(user);
+            consentimentoService.registrarConsentimento(userValidation.getEmail());
         }catch (DataIntegrityViolationException e) {
             throw new RequisicaoInvalidaException("Email já cadastrado");
         }

@@ -1,8 +1,6 @@
 package com.edu.StudyFlow.validation;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 
 /*
  * Validation usado para receber os dados do usuario.
@@ -29,6 +27,10 @@ public class UserCadastroValidation {
     @Email(message = "Email invalido")
     private String email;
 
+    // @AssertTrue indica que o valor é obrigatorio ser true
+    @AssertTrue(message = "E necessario aceitar os termos de uso")
+    private boolean aceiteTermos;
+
     // Getters e Setters
     public String getUsername() {
         return username;
@@ -53,5 +55,11 @@ public class UserCadastroValidation {
     }
     public void setEmail(String email) {
         this.email = email;
+    }
+    public boolean getAceiteTermos() {
+        return aceiteTermos;
+    }
+    public void setAceiteTermos(boolean aceiteTermos) {
+        this.aceiteTermos = aceiteTermos;
     }
 }
