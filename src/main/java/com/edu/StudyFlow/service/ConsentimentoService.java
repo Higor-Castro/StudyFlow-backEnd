@@ -1,5 +1,6 @@
 package com.edu.StudyFlow.service;
 
+import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.Consentimento;
 import com.edu.StudyFlow.model.Log;
 import com.edu.StudyFlow.repository.ConsentimentoRepository;
@@ -36,6 +37,16 @@ public class ConsentimentoService {
         consentimentoRepository.save(consentimento);
         // salva o log na tabela
         Log log = new Log("CONSENTIMENTO_REGISTRADO_SUCESSO", email,"Consentimento registrado (versao " + versaoAtual + ")", LocalDateTime.now());
+        logService.salvarLog(log);
+    }
+    // Revoga o consentimento do ativo usuario
+    public void revogarConsentimento(String email){
+        Consentimento consentimento = consentimentoRepository.buscarAtivo(email)
+                                      .orElseThrow(()-> new RequisicaoInvalidaException("Nenhum consentimento ativo encontrado"));
+        consentimento.setRevogado(true);
+        consentimento.setDataRevogacao(LocalDateTime.now());
+        consentimentoRepository.save(consentimento);
+        Log log = new Log("CONSENTIMENTO_REVOGADO_SUCESSO", email, "Consentimento revogado pelo usuario", LocalDateTime.now());
         logService.salvarLog(log);
 
     }

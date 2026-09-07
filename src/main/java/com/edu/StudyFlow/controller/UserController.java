@@ -8,6 +8,7 @@ import com.edu.StudyFlow.validation.RedefinirSenhaValidation;
 import com.edu.StudyFlow.validation.TwoFAValidation;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -33,16 +34,19 @@ public class UserController {
     private LoginTimeService loginTimeService;
     private JwtService jwtService;
     private RedefinirSenhaService redefinirSenhaService;
+    private ConsentimentoService consentimentoService;
 
     // Injecao do service via construtor
     public UserController(UserService userService, TwoFAService twoFAService, LogService logService,
-                          LoginTimeService loginTimeService, JwtService jwtService, RedefinirSenhaService redefinirSenhaService) {
+                          LoginTimeService loginTimeService, JwtService jwtService, RedefinirSenhaService redefinirSenhaService,
+                          ConsentimentoService consentimentoService) {
         this.userService = userService;
         this.twoFAService = twoFAService;
         this.logService = logService;
         this.loginTimeService = loginTimeService;
         this.jwtService = jwtService;
         this.redefinirSenhaService = redefinirSenhaService;
+        this.consentimentoService = consentimentoService;
     }
 
 
@@ -181,6 +185,16 @@ public class UserController {
         return "Senha redefinida com sucesso";
     }
 
+    // Revogacao do consentimento do usuario
+    //Authentication traz os dados do usuario logado extraidos do token JWT
+    @PostMapping("/consentimento/revogar")
+    public String revogarConsentimento (Authentication authentication) {
+        // extrai o email do token
+        String email = authentication.getName();
+        // chama o metodo para revogacao do consentimento
+        consentimentoService.revogarConsentimento(email);
+        return "Consentimento revogado com sucesso";
+    }
     // validar a secao do user
     @GetMapping("/validar")
     public String validar() {
