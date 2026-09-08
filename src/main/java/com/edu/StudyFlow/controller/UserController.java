@@ -89,6 +89,16 @@ public class UserController {
         if(validarBloqueio) {
             throw new RequisicaoInvalidaException("Login esta bloqueado, aguarde o tempo de expiração");
         }
+        // chama o metodo para verrificar se tem consentimento ativo
+        boolean consetimentoAtivo = consentimentoService.temConsentimentoAtivo(userValidation.getEmail());
+        if(!consetimentoAtivo) {
+            // registra tentativa errada para o calculo do bloqueio
+            loginTimeService.registrarFalhaLogin(userValidation.getEmail());
+            // salva os logs na tabela
+            Log log = new Log("LOGIN_CONSENTIMENTO_FALHA", userValidation.getEmail(),"Login bloqueado: consentimento revogado", LocalDateTime.now());
+            logService.salvarLog(log);
+            throw new RequisicaoInvalidaException("E necessario aceitar novamente os termos de uso para continuar");
+        }
         // chama o metodo para validar o usuario.
         boolean validarUsuario = userService.validarLogin(userValidation.getEmail(),userValidation.getSenha());
         // verrifica se o usuario e valido.
@@ -195,6 +205,15 @@ public class UserController {
         consentimentoService.revogarConsentimento(email);
         return "Consentimento revogado com sucesso";
     }
+    // caso usuario queira usar o sistema novamente e nescessario aceitar o consentimento novamente
+    @PostMapping("/consentimento/aceitar")
+    public String aceitarConsentimento (@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        consentimentoService.registrarConsentimento(email);
+        return "Termo aceito novamente.Login pode ser realizado.";
+    }
+
+
     // validar a secao do user
     @GetMapping("/validar")
     public String validar() {

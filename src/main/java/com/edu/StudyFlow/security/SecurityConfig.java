@@ -44,7 +44,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Rotas publicas: cadastro, duas etapas do login e a recuperacao de senha
                         .requestMatchers("/users/cadastro", "/users/login", "/users/login/2fa",
-                                         "/users/senha/recuperar","/users/senha/validar", "/users/senha/redefinir").permitAll()
+                                         "/users/senha/recuperar","/users/senha/validar", "/users/senha/redefinir",
+                                         "/users/consentimento/aceitar").permitAll()
                         // Rotas de admin: exigem usuario com nivel ADMIN, tambem precisa do jwt
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         // todas as demais rotas exigem apenas estar autenticado

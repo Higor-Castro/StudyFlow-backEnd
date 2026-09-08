@@ -50,6 +50,11 @@ public class ConsentimentoService {
         logService.salvarLog(log);
 
     }
+    // verrifica se tem consentimento ativo
+    public boolean temConsentimentoAtivo(String email) {
+        return consentimentoRepository.buscarAtivo(email).isPresent();
+    }
+
 
 
 }
