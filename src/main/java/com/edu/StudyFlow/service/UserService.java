@@ -1,5 +1,6 @@
 package com.edu.StudyFlow.service;
 
+import com.edu.StudyFlow.model.Consentimento;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
 import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.User;
@@ -7,6 +8,11 @@ import com.edu.StudyFlow.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /*
  * Service tem o papel de concentrar
@@ -70,5 +76,25 @@ public class UserService {
         // salva a nova senha
         user.setPassword(passwordEncoder.encode(senha));
         userRepository.save(user);
+    }
+    // Informa os dados do usuario
+    public Map<String, Object> consultarDados(String email) {
+        // busca os dados do usuario e o consentimo
+        User user = userRepository.findByEmail(email).orElseThrow(()->new RequisicaoInvalidaException("Usuário não encontrado"));
+        Optional<Consentimento> consentimento = consentimentoService.buscarConsentimentoAtivo(email);
+
+        Map<String, Object> dadosUsuario = new ConcurrentHashMap<>();
+        dadosUsuario.put("nome", user.getUsername());
+        dadosUsuario.put("email", user.getEmail());
+        dadosUsuario.put("nivel", user.getNivel());
+        // verrifica se tem consentimento para inserir
+        if (consentimento.isPresent()) {
+            Map<String,Object> dadosConsentimento = new ConcurrentHashMap<>();
+            dadosConsentimento.put("versaoTermos", consentimento.get().getVersao());
+            dadosConsentimento.put("dataAceite", consentimento.get().getDataAceite());
+            dadosConsentimento.put("finalidade", consentimento.get().getFinalidade());
+            dadosUsuario.put("consentimento", dadosConsentimento);
+        }
+        return dadosUsuario;
     }
 }

@@ -7,6 +7,7 @@ import com.edu.StudyFlow.repository.ConsentimentoRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 /*
  * Service tem o papel de concentrar
@@ -53,6 +54,10 @@ public class ConsentimentoService {
     // verrifica se tem consentimento ativo
     public boolean temConsentimentoAtivo(String email) {
         return consentimentoRepository.buscarAtivo(email).isPresent();
+    }
+    // Retorna o consentimento ativo do usuario
+    public Optional<Consentimento> buscarConsentimentoAtivo(String email) {
+        return consentimentoRepository.buscarAtivo(email);
     }
 
 

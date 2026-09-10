@@ -8,6 +8,7 @@ import com.edu.StudyFlow.validation.RedefinirSenhaValidation;
 import com.edu.StudyFlow.validation.TwoFAValidation;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -212,8 +213,36 @@ public class UserController {
         consentimentoService.registrarConsentimento(email);
         return "Termo aceito novamente.Login pode ser realizado.";
     }
+    // consulta os dados usuario
+    @GetMapping("/conultar")
+    public Map<String, Object> consultarMeusDados(Authentication authentication) {
+        // chama o metodo para a busca dos dados
+        Map<String, Object> dadosUsuario = userService.consultarDados(authentication.getName());
 
+        // extrai o email do token e salva os logs na tabela
+        String email = authentication.getName();
+        Log log = new Log("DADOS_CONSULTADOS", email, "Usuario consultou seus dados pessoais", LocalDateTime.now());
+        logService.salvarLog(log);
 
+        return dadosUsuario;
+    }
+
+    // exporta os dados do usuario em forma de json
+    @GetMapping("/exportar")
+    public ResponseEntity<Object> exportarMeusDados(Authentication authentication) {
+        // chama o metodo para a busca dos dados
+        Map<String, Object> dados = userService.consultarDados(authentication.getName());
+
+        // extrai o email do token e salva os logs na tabela
+        String email = authentication.getName();
+        Log log = new Log("DADOS_EXPORTADOS", email, "Usuario exportou seus dados pessoais", LocalDateTime.now());
+        logService.salvarLog(log);
+
+        // Instrui o navegador a baixar a resposta como arquivo
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"meus-dados.json\"")
+                .body(dados);
+    }
     // validar a secao do user
     @GetMapping("/validar")
     public String validar() {
