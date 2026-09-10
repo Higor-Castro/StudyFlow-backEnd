@@ -98,7 +98,7 @@ public class UserController {
             // salva os logs na tabela
             Log log = new Log("LOGIN_CONSENTIMENTO_FALHA", userValidation.getEmail(),"Login bloqueado: consentimento revogado", LocalDateTime.now());
             logService.salvarLog(log);
-            throw new RequisicaoInvalidaException("E necessario aceitar novamente os termos de uso para continuar");
+            throw new RequisicaoInvalidaException("È necessário aceitar novamente os termos de uso para continuar");
         }
         // chama o metodo para validar o usuario.
         boolean validarUsuario = userService.validarLogin(userValidation.getEmail(),userValidation.getSenha());
@@ -132,7 +132,7 @@ public class UserController {
             // salva os logs na tabela
             Log log = new Log("LOGIN_2FA_FALHA", twoFAValidation.getEmail(), "Codigo invalido ou expirado", LocalDateTime.now());
             logService.salvarLog(log);
-            throw new RequisicaoInvalidaException("Codigo invalido ou expirado");
+            throw new RequisicaoInvalidaException("Código invalido ou expirado");
         }
         // salva os logs na tabela
         Log log = new Log("LOGIN_2FA_SUCESSO", twoFAValidation.getEmail(), "2FA Correto", LocalDateTime.now());
@@ -221,7 +221,7 @@ public class UserController {
 
         // extrai o email do token e salva os logs na tabela
         String email = authentication.getName();
-        Log log = new Log("DADOS_CONSULTADOS", email, "Usuario consultou seus dados pessoais", LocalDateTime.now());
+        Log log = new Log("DADOS_CONSULTADOS_SUCESSO", email, "Usuario consultou seus dados pessoais", LocalDateTime.now());
         logService.salvarLog(log);
 
         return dadosUsuario;
@@ -235,13 +235,28 @@ public class UserController {
 
         // extrai o email do token e salva os logs na tabela
         String email = authentication.getName();
-        Log log = new Log("DADOS_EXPORTADOS", email, "Usuario exportou seus dados pessoais", LocalDateTime.now());
+        Log log = new Log("DADOS_EXPORTADOS_SUCESSO", email, "Usuario exportou seus dados pessoais", LocalDateTime.now());
         logService.salvarLog(log);
 
         // Instrui o navegador a baixar a resposta como arquivo
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=\"meus-dados.json\"")
                 .body(dados);
+    }
+    // deleta a conta e os dados pessoais do usuario
+    @DeleteMapping("/deletar")
+    public String excluirMeusDados(Authentication authentication) {
+        String email = authentication.getName();
+        // Remove os consentimentos vinculados ao usuario
+        consentimentoService.deletarConsentimento(email);
+        // Anonimiza os logs do usuario
+        logService.AnonimizarLog(email);
+        // Remove a conta do usuario
+        userService.excluirDados(email);
+        // salva o Log anonimizado no banco
+        Log log = new Log("DADOS_EXCLUIDOS_SUCESSO", "usuario-excluido", "Conta e dados pessoais excluidos a pedido do titular", LocalDateTime.now());
+        logService.salvarLog(log);
+        return "Sua conta e seus dados pessoais foram excluídos com sucesso";
     }
     // validar a secao do user
     @GetMapping("/validar")

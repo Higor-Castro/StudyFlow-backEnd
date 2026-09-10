@@ -59,6 +59,10 @@ public class ConsentimentoService {
     public Optional<Consentimento> buscarConsentimentoAtivo(String email) {
         return consentimentoRepository.buscarAtivo(email);
     }
+    // Remove os consentimentos vinculados ao usuario
+    public void deletarConsentimento(String email) {
+        consentimentoRepository.deletarPorEmail(email);
+    }
 
 
 

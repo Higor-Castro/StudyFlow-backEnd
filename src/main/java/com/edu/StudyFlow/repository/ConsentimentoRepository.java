@@ -2,9 +2,11 @@ package com.edu.StudyFlow.repository;
 
 import com.edu.StudyFlow.model.Consentimento;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,4 +34,19 @@ public interface ConsentimentoRepository extends JpaRepository<Consentimento,Lon
      */
     @Query("SELECT c FROM Consentimento c WHERE c.email = :email AND c.revogado = false ORDER BY c.dataAceite DESC")
     Optional<Consentimento> buscarAtivo(@Param("email") String email);
+
+
+    /*
+     * Remove todos os consentimentos associados ao usuario
+     *
+     * @Modifying informa que esta @Query nao e um SELECT, e sim uma
+     * operacao que altera dados
+     *
+     * @Transactional e obrigatorio para @Modifying, pois toda alteracao
+     * no banco precisa acontecer dentro de uma transacao.
+     */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Consentimento c WHERE c.email = :email")
+    void deletarPorEmail(@Param("email") String email);
 }

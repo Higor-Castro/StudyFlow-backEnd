@@ -97,4 +97,12 @@ public class UserService {
         }
         return dadosUsuario;
     }
+    // Exclui a conta e os dados pessoais do usuario, a pedido do proprio titular
+    public void excluirDados(String email) {
+        // busca os dados do usuario
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RequisicaoInvalidaException("Usuário não encontrado"));
+        // deleta o usuario
+        userRepository.delete(user);
+
+    }
 }
