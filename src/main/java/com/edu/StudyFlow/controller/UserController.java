@@ -214,7 +214,7 @@ public class UserController {
         return "Termo aceito novamente.Login pode ser realizado.";
     }
     // consulta os dados usuario
-    @GetMapping("/conultar")
+    @GetMapping("/consultar")
     public Map<String, Object> consultarMeusDados(Authentication authentication) {
         // chama o metodo para a busca dos dados
         Map<String, Object> dadosUsuario = userService.consultarDados(authentication.getName());
