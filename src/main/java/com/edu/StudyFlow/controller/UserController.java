@@ -90,16 +90,6 @@ public class UserController {
         if(validarBloqueio) {
             throw new RequisicaoInvalidaException("Login esta bloqueado, aguarde o tempo de expiração");
         }
-        // chama o metodo para verrificar se tem consentimento ativo
-        boolean consetimentoAtivo = consentimentoService.temConsentimentoAtivo(userValidation.getEmail());
-        if(!consetimentoAtivo) {
-            // registra tentativa errada para o calculo do bloqueio
-            loginTimeService.registrarFalhaLogin(userValidation.getEmail());
-            // salva os logs na tabela
-            Log log = new Log("LOGIN_CONSENTIMENTO_FALHA", userValidation.getEmail(),"Login bloqueado: consentimento revogado", LocalDateTime.now());
-            logService.salvarLog(log);
-            throw new RequisicaoInvalidaException("È necessário aceitar novamente os termos de uso para continuar");
-        }
         // chama o metodo para validar o usuario.
         boolean validarUsuario = userService.validarLogin(userValidation.getEmail(),userValidation.getSenha());
         // verrifica se o usuario e valido.
@@ -110,6 +100,16 @@ public class UserController {
             Log log = new Log("LOGIN_FALHA", userValidation.getEmail(), "Email ou senha invalida", LocalDateTime.now());
             logService.salvarLog(log);
             throw new RequisicaoInvalidaException("Email ou senha invalida");
+        }
+        // chama o metodo para verrificar se tem consentimento ativo
+        boolean consetimentoAtivo = consentimentoService.temConsentimentoAtivo(userValidation.getEmail());
+        if(!consetimentoAtivo) {
+            // registra tentativa errada para o calculo do bloqueio
+            loginTimeService.registrarFalhaLogin(userValidation.getEmail());
+            // salva os logs na tabela
+            Log log = new Log("LOGIN_CONSENTIMENTO_FALHA", userValidation.getEmail(),"Login bloqueado: consentimento revogado", LocalDateTime.now());
+            logService.salvarLog(log);
+            throw new RequisicaoInvalidaException("È necessário aceitar novamente os termos de uso para continuar");
         }
         // Login valido reseta o historico de tentativas erradas
         loginTimeService.retirarBloqueio(userValidation.getEmail());
