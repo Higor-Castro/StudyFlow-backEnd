@@ -42,6 +42,8 @@ public class SecurityConfig {
                 // nao guarda sessao no servidor: cada requisicao se autentica pelo token JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Preflight (OPTIONS) liberado: nao executa logica de negocio, so verifica CORS
+                        .requestMatchers(HttpMethod.OPTIONS, "/users/**").permitAll()
                         // Rotas publicas: cadastro, duas etapas do login e a recuperacao de senha
                         .requestMatchers("/users/cadastro", "/users/login", "/users/login/2fa",
                                          "/users/senha/recuperar","/users/senha/validar", "/users/senha/redefinir",
@@ -56,16 +58,20 @@ public class SecurityConfig {
 
         return http.build();
     }
-    // Libera o navegador a acessar apenas as rotas /users
+    
+    // Define quem, com o que e como pode acessar as rotas pelo navegador
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
-        config.setAllowedMethods(List.of("GET", "POST"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedOrigins(List.of("https://study-flow-eight-self.vercel.app")); // so essa origem
+        config.setAllowedMethods(List.of("GET", "POST", "DELETE", "OPTIONS")); // metodos usados pela API
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type")); // headers minimos necessarios
+        config.setExposedHeaders(List.of()); // nenhum header extra exposto ao front
+        config.setMaxAge(1800L); // cacheia o preflight por 30 minutos (alinhado a duracao do JWT)
+        config.setAllowCredentials(false); // usa JWT no header, nao precisa de cookies
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/users/**", config);
+        source.registerCorsConfiguration("/users/**", config); // aplica so em /users
         return source;
     }
     /*
