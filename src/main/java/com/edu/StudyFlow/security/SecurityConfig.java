@@ -63,7 +63,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("https://study-flow-eight-self.vercel.app")); // so essa origem
+        config.setAllowedOriginPatterns(List.of("*")); // configuracao temporaria para poder testar localmente
         config.setAllowedMethods(List.of("GET", "POST", "DELETE", "OPTIONS")); // metodos usados pela API
         config.setAllowedHeaders(List.of("Authorization", "Content-Type")); // headers minimos necessarios
         config.setExposedHeaders(List.of()); // nenhum header extra exposto ao front
