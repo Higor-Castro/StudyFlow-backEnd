@@ -27,7 +27,7 @@ public class LogService {
     }
 
     // Anonimiza os logs relecionados ao usuario.
-    public void AnonimizarLog (String email){
+    public void anonimizarLog (String email){
         logRepository.anonimizarPorEmail(email);
     }
 }

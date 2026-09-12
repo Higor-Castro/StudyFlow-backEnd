@@ -250,7 +250,7 @@ public class UserController {
         // Remove os consentimentos vinculados ao usuario
         consentimentoService.deletarConsentimento(email);
         // Anonimiza os logs do usuario
-        logService.AnonimizarLog(email);
+        logService.anonimizarLog(email);
         // Remove a conta do usuario
         userService.excluirDados(email);
         // salva o Log anonimizado no banco
