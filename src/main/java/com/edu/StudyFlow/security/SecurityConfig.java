@@ -41,6 +41,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // nao guarda sessao no servidor: cada requisicao se autentica pelo token JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Exige HTTPS para todas as requisicoes da aplicacao
+                .requiresChannel(channel -> channel.anyRequest().requiresSecure())
+                // Configura quais rotas sao publicas e quais exigem autenticacao
                 .authorizeHttpRequests(auth -> auth
                         // Preflight (OPTIONS) liberado: nao executa logica de negocio, so verifica CORS
                         .requestMatchers(HttpMethod.OPTIONS, "/users/**").permitAll()
@@ -63,7 +66,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*")); // configuracao temporaria para poder testar localmente
+        config.setAllowedOrigins(List.of("https://study-flow-eight-self.vercel.app")); // so aceita URL de origem
         config.setAllowedMethods(List.of("GET", "POST", "DELETE", "OPTIONS")); // metodos usados pela API
         config.setAllowedHeaders(List.of("Authorization", "Content-Type")); // headers minimos necessarios
         config.setExposedHeaders(List.of()); // nenhum header extra exposto ao front
