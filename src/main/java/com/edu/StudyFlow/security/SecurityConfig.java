@@ -15,6 +15,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+import static org.springframework.security.config.Customizer.withDefaults;
+
 /*
  * Security tem a responsabilidade pela seguranca da aplicacao
  *
@@ -42,7 +44,7 @@ public class SecurityConfig {
                 // nao guarda sessao no servidor: cada requisicao se autentica pelo token JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Exige HTTPS para todas as requisicoes da aplicacao
-                .requiresChannel(channel -> channel.anyRequest().requiresSecure())
+                .redirectToHttps(withDefaults())
                 // Configura quais rotas sao publicas e quais exigem autenticacao
                 .authorizeHttpRequests(auth -> auth
                         // Preflight (OPTIONS) liberado: nao executa logica de negocio, so verifica CORS
