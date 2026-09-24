@@ -46,9 +46,20 @@ O objetivo do StudyFlow é proporcionar aos estudantes uma ferramenta que facili
 
 ## 🏗️ Arquitetura
 
+O projeto utiliza uma arquitetura com **Front-end e Back-end separados**, que se comunicam por meio de uma **API REST**.
 
+O Back-end foi estruturado seguindo uma **arquitetura em camadas**, com separação de responsabilidades entre os principais componentes da aplicação:
 
-O projeto utiliza uma arquitetura com **Front-end e Back-end separados**, comunicando-se por meio de uma **API REST**.
+* **Controller** — responsável pelo recebimento das requisições HTTP e comunicação com o cliente.
+* **Service** — concentra as regras de negócio e o processamento das funcionalidades.
+* **Repository** — responsável pelo acesso e persistência dos dados no banco de dados.
+* **Model** — representa as entidades e os dados persistidos pela aplicação.
+* **Validation** — responsável pelas validações dos dados recebidos nas requisições.
+* **Security** — concentra os mecanismos de autenticação, autorização e gerenciamento de tokens JWT.
+* **Exception** — responsável pelo tratamento e padronização das exceções da aplicação.
+
+Essa organização utiliza conceitos do padrão MVC (Model-View-Controller), adaptados para uma aplicação baseada em API REST, juntamente com o Repository Pattern, utilizado para separar o acesso ao banco de dados das demais partes da aplicação. No projeto, os Repositorys são responsáveis por realizar consultas e operações de persistência das entidades no PostgreSQL, mantendo essa responsabilidade separada dos controllers e services.
+
 
 
 
