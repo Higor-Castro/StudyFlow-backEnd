@@ -5,6 +5,7 @@ import com.edu.StudyFlow.model.Consentimento;
 import com.edu.StudyFlow.model.Log;
 import com.edu.StudyFlow.repository.ConsentimentoRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -31,8 +32,13 @@ public class ConsentimentoService {
         this.consentimentoRepository = consentimentoRepository;
         this.logService = logService;
     }
+
     // Registra o consentimento no momento do cadastro
+    //@Transactional garante que as operacoes no banco sejam executadas em uma única transação.
+    @Transactional
     public void registrarConsentimento(String email){
+        // se repetir a chamada nao deve criar varios consentimentos ativos.
+        if (consentimentoRepository.existsByEmailAndRevogadoFalse(email)) return;
         // salva o consentimento na tabela
         Consentimento consentimento = new Consentimento(email,versaoAtual,finalidadePadrao, LocalDateTime.now());
         consentimentoRepository.save(consentimento);

@@ -35,6 +35,9 @@ public interface ConsentimentoRepository extends JpaRepository<Consentimento,Lon
     @Query("SELECT c FROM Consentimento c WHERE c.email = :email AND c.revogado = false ORDER BY c.dataAceite DESC")
     Optional<Consentimento> buscarAtivo(@Param("email") String email);
 
+    //  verifica se existe algum consentimento ativo associado ao email.
+    boolean existsByEmailAndRevogadoFalse(String email);
+
 
     /*
      * Remove todos os consentimentos associados ao usuario
