@@ -1,0 +1,44 @@
+# Regras do ZAP: id <TAB> ação <TAB> (nome)
+# FAIL = derruba o build | WARN = só avisa | IGNORE = ignora
+#
+# Estratégia: qualquer achado NÃO listado aqui usa a ação padrão do ZAP
+# (normalmente WARN), ou seja, fica documentado no relatório mas não
+# bloqueia o pipeline. Só colocamos em FAIL o que representa exploração
+# direta e de alto impacto (execução de código, vazamento/alteração de
+# dado via injeção) — achados de hardening (headers ausentes, cache,
+# cookies sem flag) ficam como WARN de propósito: são relevantes, mas
+# bloquear o build por eles geraria fricção desproporcional ao risco real
+# numa API REST (sem renderização de HTML no cliente).
+
+# Cross-Site Scripting: injeção de script no response
+40012	FAIL	(Cross Site Scripting (Reflected))
+40014	FAIL	(Cross Site Scripting (Persistent))
+40016	FAIL	(Cross Site Scripting (Persistent) - Prime)
+40017	FAIL	(Cross Site Scripting (Persistent) - Spider)
+
+# SQL Injection: todas as variantes de banco cobertas, mesmo não usando
+# todos esses bancos hoje — protege contra migração futura de banco
+# sem precisar lembrar de atualizar esta lista
+40018	FAIL	(SQL Injection)
+40019	FAIL	(SQL Injection - MySQL)
+40020	FAIL	(SQL Injection - Hypersonic SQL)
+40021	FAIL	(SQL Injection - Oracle)
+40022	FAIL	(SQL Injection - PostgreSQL)
+40024	FAIL	(SQL Injection - SQLite)
+40027	FAIL	(SQL Injection - MsSQL)
+90018	FAIL	(Advanced SQL Injection)
+
+# Execução remota de código / comando no servidor: maior severidade
+# possível, compromete o host inteiro ---
+90019	FAIL	(Server Side Code Injection)
+90020	FAIL	(Remote OS Command Injection)
+
+# Injeção estrutural em XML/XPath: relevante mesmo numa API JSON,
+# pois parsers de XML podem estar presentes via dependências (ex.: SOAP
+#  de libs legadas, parsers de upload)
+90021	FAIL	(XPath Injection)
+90023	FAIL	(XML External Entity Attack)
+
+# Acesso indevido a arquivos do servidor
+6	FAIL	(Path Traversal)
+7	FAIL	(Remote File Inclusion)

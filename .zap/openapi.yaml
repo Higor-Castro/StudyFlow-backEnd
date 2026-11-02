@@ -1,0 +1,214 @@
+openapi: 3.0.3
+info:
+  title: StudyFlow API
+  version: 1.0.0
+  description: Definição usada pelo OWASP ZAP no pipeline DAST.
+servers:
+  - url: http://localhost:8080
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+paths:
+  /users/cadastro:
+    post:
+      summary: Cadastro de usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: aluno
+                senha:
+                  type: string
+                  example: Senha123
+                senhaComparar:
+                  type: string
+                  example: Senha123
+                email:
+                  type: string
+                  example: aluno@example.com
+                aceiteTermos:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Requisição inválida
+        '409':
+          description: Usuário já existente
+
+  /users/login:
+    post:
+      summary: Login (1ª etapa)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: aluno@example.com
+                senha:
+                  type: string
+                  example: Senha123
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Requisição inválida
+        '401':
+          description: Credenciais inválidas
+
+  /users/login/2fa:
+    post:
+      summary: Login (2ª etapa - código 2FA)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: aluno@example.com
+                codigo:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Requisição inválida
+        '401':
+          description: Código inválido
+
+  /users/senha/recuperar:
+    post:
+      summary: Solicita token de recuperação de senha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: aluno@example.com
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Requisição inválida
+
+  /users/senha/validar:
+    post:
+      summary: Valida token de recuperação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: aluno@example.com
+                token:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Requisição inválida
+        '401':
+          description: Token inválido
+
+  /users/senha/redefinir:
+    post:
+      summary: Redefine a senha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: aluno@example.com
+                senha:
+                  type: string
+                  example: NovaSenha123
+                senhaComparar:
+                  type: string
+                  example: NovaSenha123
+                token:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Requisição inválida
+        '401':
+          description: Token inválido
+
+  /users/consentimento/aceitar:
+    post:
+      summary: Aceita novamente os termos (LGPD)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: aluno@example.com
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Requisição inválida
+
+  /users/consultar:
+    get:
+      summary: Consulta dados do usuário (exige JWT)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Não autenticado
+        '403':
+          description: Sem permissão
+
+  /users/exportar:
+    get:
+      summary: Exporta dados do usuário (exige JWT)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Não autenticado
+        '403':
+          description: Sem permissão

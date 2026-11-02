@@ -1,0 +1,228 @@
+name: DevSecOps Avançado
+
+# Dispara em push/PR para main e permite rodar manualmente (workflow_dispatch),
+# útil para retestar sem precisar de um commit novo.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Princípio de menor privilégio: o token do GITHUB_ACTIONS só precisa ler o repositório.
+#Nenhum job aqui escreve no código, então não damos permissão de write.
+permissions:
+  contents: read
+
+jobs:
+  # JOB 1 — DAST (Dynamic Application Security Testing)
+  # Estratégia: a aplicação precisa estar DE PÉ e respondendo de verdade antes
+  # do ZAP escanear SAST/SCA olham código parado, DAST precisa de runtime.
+  dast-zap:
+    name: DAST - OWASP ZAP
+    runs-on: ubuntu-latest
+    # 40 min: build de imagem Docker + subida da app + scan completo do ZAP
+    timeout-minutes: 40
+
+    services:
+      # Banco real via service container, para o ZAP testar
+      # comportamento de erro de banco/queries como em produção.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: studyflow
+          POSTGRES_USER: studyflow
+          POSTGRES_PASSWORD: studyflow_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U studyflow -d studyflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Compilar a imagem Docker da aplicação
+        run: docker build --pull -t studyflow-api:ci .
+
+      - name: Subir a aplicação localmente
+        # network host: o container enxerga o Postgres do service na mesma
+        # rede do runner sem precisar mapear hostname/DNS entre containers.
+        # Segredos aqui são fake/descartáveis, só para o app conseguir subir
+        # em CI — nunca reaproveitar valores reais de produção neste lugar.
+        run: |
+          docker run -d --name studyflow-api --network host \
+            -e DATABASE_URL=jdbc:postgresql://localhost:5432/studyflow \
+            -e DATABASE_USERNAME=studyflow \
+            -e DATABASE_PASSWORD=studyflow_ci \
+            -e BREVO_API_KEY=chave-falsa-ci \
+            -e BREVO_EMAIL=ci@example.com \
+            -e JWT_SECRET=segredo-de-teste-ci-com-mais-de-32-caracteres-123456 \
+            -e SERVER_FORWARD_HEADERS_STRATEGY=native \
+            studyflow-api:ci
+
+      - name: Esperar a API responder
+        # Estratégia de retry em vez de "sleep fixo": evita falha intermitente
+        # por lentidão do runner e evita desperdiçar minutos de CI esperando
+        # um tempo fixo maior do que o necessário.
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H 'X-Forwarded-Proto: https' \
+              http://localhost:8080/users/validar || true)
+
+            echo "tentativa $i -> HTTP $code"
+            if [ "$code" != "000" ] && [ "$code" != "404" ] && [ "$code" != "301" ] && [ "$code" != "302" ]; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "A aplicação não subiu. Logs:"
+          docker logs studyflow-api --tail 200
+          exit 1
+
+      - name: DAST - OWASP ZAP API Scan
+        # Scan orientado por OpenAPI:
+        # garante cobertura determinística de TODOS os endpoints documentados,
+        # inclusive os que exigem JWT, em vez de depender do ZAP descobrir rotas sozinho.
+        uses: zaproxy/action-api-scan@v0.10.0
+        with:
+          target: '.zap/openapi.yaml'
+          format: openapi
+          rules_file_name: '.zap/rules.tsv'
+          # O app roda atrás de X-Forwarded-Proto: https em produção. Replicamos esse header no scan para evitar falso
+          # positivo de "cookie sem Secure" por ambiente de CI ser http puro.
+          cmd_options: >
+            -I -z
+            "-config replacer.full_list(0).description=xfp
+            -config replacer.full_list(0).enabled=true
+            -config replacer.full_list(0).matchtype=REQ_HEADER
+            -config replacer.full_list(0).matchstring=X-Forwarded-Proto
+            -config replacer.full_list(0).replacement=https"
+          allow_issue_writing: false
+          # fail_action + rules.tsv: só bloqueia o build em achado classificado
+          # como FAIL (injeção/XSS/RCE), ver estratégia detalhada no rules.tsv.
+          fail_action: true
+          artifact_name: zap-relatorio-dast
+
+      - name: Logs da aplicação em caso de falha
+        # So roda se algo antes falhar, poupa log ruidoso no caminho feliz
+        # e acelera o diagnóstico quando o ZAP ou o boot da app quebram.
+        if: failure()
+        run: docker logs studyflow-api --tail 200
+
+      - name: Finalizar contêiner
+        # always(): garante limpeza do contêiner mesmo se o scan falhar,
+        # evitando runner "sujo" em re-runs.
+        if: always()
+        run: docker rm -f studyflow-api || true
+
+  # JOB 2  Privacidade e Dados Sensíveis (LGPD)
+  # Estratégia: roda isolado do job de DAST, pois é análise estática de código-fonte
+  # jobs em paralelo reduzem o tempo total do pipeline.
+  privacidade-bearer:
+    name: Privacidade - Bearer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Bearer - scan de privacidade e dados sensíveis
+        uses: bearer/bearer-action@v2
+        with:
+          path: .
+          # sast: lógica de manuseio de dado sensível (ex.: PII indo pra log,exportação sem mascaramento).
+          # secrets: credenciais hardcoded.
+          scanner: sast,secrets
+          # Filtra ruído: severidades low/medium geram muito falso positivo
+          # critical/high é o que de fato justifica bloquear o build.
+          severity: critical,high
+          # Docs/* e src/test/* excluídos: documentação e massa de teste não
+          # representam risco real de vazamento em produção.
+          skip-path: 'Docs/*,src/test/*'
+          format: json
+          output: bearer-relatorio.json
+          # Mesmo princípio do ZAP: achado crítico/alto derruba o build.
+          exit-code: 1
+
+      - name: Guardar relatório do Bearer
+        # if: always() + if-no-files-found: ignore — garante que o artefato
+        # suba mesmo se o job falhar (relatório de uma falha é a evidência
+        # mais importante), sem quebrar o upload caso o Bearer não gere
+        # arquivo algum (cenário de zero achados).
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bearer-relatorio
+          path: bearer-relatorio.json
+          if-no-files-found: ignore
+
+  # JOB 3 Supply Chain Security (SBOM)
+  # Estratégia: inventário de dependências independe de app rodando ou de
+  # scan de código-fonte por isso também roda em paralelo aos outros dois.
+  sbom-trivy:
+    name: SBOM - Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Resolver dependências Maven
+        # Baixa o pom.xml completo (diretas + transitivas) para o Trivy
+        # enxergar a árvore real de dependências, não só o que já estava
+        # em cache sem isso o SBOM ficaria incompleto.
+        run: mvn -B -q -DskipTests dependency:resolve
+
+      - name: Instalar Trivy v0.69.3 com validação de integridade
+        # Versão fixada (não "latest") + checagem de sha256: evita que uma
+        # atualização silenciosa do binário quebre o pipeline ou, pior,
+        # introduza um binário malicioso via supply chain attack, é
+        # irônico (e inaceitável) confiar cegamente numa ferramenta de
+        # segurança de cadeia de suprimentos sem validar a própria cadeia.
+        run: |
+          curl -sSL -o trivy.tgz https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz
+          echo "1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75  trivy.tgz" | sha256sum -c -
+          tar xzf trivy.tgz trivy
+          sudo mv trivy /usr/local/bin/trivy
+          trivy --version
+
+      - name: Gerar SBOM em formato CycloneDX
+        # CycloneDX (não SPDX): formato pedido no enunciado e também o mais
+        # usado atualmente em compliance de supply chain (OWASP, NIST SSDF).
+        run: trivy fs --format cyclonedx --output sbom.json .
+
+      - name: Validar o SBOM e resumir no relatório do job
+        # Não basta gerar o arquivo validamos que o bomFormat está correto
+        # (falha cedo se o Trivy mudar de formato num update futuro) e
+        # publicamos um resumo legível direto no Summary do job, para quem
+        # for revisar o PR não precisar baixar o JSON só para conferir.
+        run: |
+          jq -e '.bomFormat == "CycloneDX"' sbom.json
+          total=$(jq '.components | length' sbom.json)
+          echo "Componentes no SBOM: $total"
+          {
+            echo "### SBOM gerado (CycloneDX)"
+            echo "Total de componentes: **$total**"
+            echo
+            echo "| Componente | Versão |"
+            echo "|---|---|"
+            jq -r '.components[] | select(.version != null) | "| \(.name) | \(.version) |"' sbom.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar SBOM como artefato
+        # retention-days: 90 prazo maior que o padrão.
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.json
+          retention-days: 90
