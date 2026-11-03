@@ -2,8 +2,10 @@ package com.edu.StudyFlow.service;
 
 import com.edu.StudyFlow.model.Log;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Random;
@@ -20,27 +22,34 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class TwoFAService {
     private final EmailService emailService;
+    private PasswordEncoder passwordEncoder;
 
     // usar para guardar a quantidade de minutos de duração do codigo.
     private static final int minutosExpirar = 5;
 
+    // numero maximo de tentativas erradas de validacao do codigo antes de invalida-lo
+    // evita forca bruta.
+    private static final int tentativasMaxCodigo = 5;
+
     // Guarda temporariamente o email <chave> e o codigo,data-horario <valor> de 2FA
     private final Map<String, Map> codigosPendentes = new ConcurrentHashMap<>();
 
-    // Injecao do EmailService via construtor
-    public  TwoFAService(EmailService emailService) {
+    // Injecao do encoder e o service via construtor.
+    public  TwoFAService(EmailService emailService, PasswordEncoder passwordEncoder) {
         this.emailService = emailService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // Gera um codigo de 6 digitos e guarda associado ao email
     public void gerarCodigo (String email){
-        // nextInt(900000) gera valores de 0 a 89999, e a soma de 100000 garante que o resultado tenha 6 digitos.
-        String codigo = String.valueOf(new Random().nextInt(900000) + 100000);
-        Map <String, String> codigoInfo = new ConcurrentHashMap<>();
+        // gera um token de 6 digitos usando SecureRandom, um gerador criptograficamente seguro
+        String codigo = String.valueOf(new SecureRandom().nextInt(900000) + 100000);
+        Map<String, Object> codigoInfo = new ConcurrentHashMap<>();
 
-        // insere o codigo e a data-horario.
-        codigoInfo.put("codigo", codigo);
+        // guarda o HASH do codigo, data-horario e a quantidade de tentativas.
+        codigoInfo.put("codigoHash", passwordEncoder.encode(codigo));
         codigoInfo.put("time", String.valueOf(LocalDateTime.now()));
+        codigoInfo.put("tentativas", 0);
         codigosPendentes.put(email, codigoInfo);
 
         // chama o metodo para o envio de email.
@@ -57,7 +66,6 @@ public class TwoFAService {
             return false;
         }
 
-        String codigoCorreto = hashCodigo.get("codigo").toString();
         LocalDateTime timeCodigo =  LocalDateTime.parse(hashCodigo.get("time").toString());
 
         //Valida se ja passsou do tempo.
@@ -66,10 +74,21 @@ public class TwoFAService {
             return false;
         }
 
-        // valida o se o codigo ditado e igual ao gerado.
-        boolean validar = codigoCorreto.equals(codigoDigitado);
+        // Valida se o limite de tentativas erradas ja foi atingido.
+        int tentativas = (int) hashCodigo.get("tentativas");
+        if (tentativas >= tentativasMaxCodigo) {
+            codigosPendentes.remove(email);
+            return false;
+        }
+
+        // valida se o codigo digitado bate com o HASH armazenado.
+        String codigoHash = hashCodigo.get("codigoHash").toString();
+        boolean validar = passwordEncoder.matches(codigoDigitado, codigoHash);
         if (validar) {
             codigosPendentes.remove(email);
+        }else {
+            // soma mais uma tentativa errada antes de permitir a proxima chamada.
+            hashCodigo.put("tentativas", tentativas + 1);
         }
         return validar;
     }
