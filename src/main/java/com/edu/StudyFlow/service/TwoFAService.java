@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class TwoFAService {
     private final EmailService emailService;
-    private PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
 
     // usar para guardar a quantidade de minutos de duração do codigo.
     private static final int minutosExpirar = 5;
@@ -32,7 +32,7 @@ public class TwoFAService {
     private static final int tentativasMaxCodigo = 5;
 
     // Guarda temporariamente o email <chave> e o codigo,data-horario <valor> de 2FA
-    private final Map<String, Map> codigosPendentes = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> codigosPendentes = new ConcurrentHashMap<>();
 
     // Injecao do encoder e o service via construtor.
     public  TwoFAService(EmailService emailService, PasswordEncoder passwordEncoder) {
@@ -60,7 +60,7 @@ public class TwoFAService {
     // Verifica se o codigo digitado bate com o que foi gerado
     public boolean validarCodigo (String email, String codigoDigitado) {
         // procura na lista o codigo e a data-horario referente ao email.
-        Map hashCodigo = codigosPendentes.get(email);
+        Map<String, Object> hashCodigo = codigosPendentes.get(email);
         // Verrica se tem valor null.
         if(hashCodigo == null) {
             return false;
