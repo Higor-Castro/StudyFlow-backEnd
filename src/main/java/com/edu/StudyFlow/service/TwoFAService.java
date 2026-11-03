@@ -1,5 +1,6 @@
 package com.edu.StudyFlow.service;
 
+import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.Log;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -78,7 +79,7 @@ public class TwoFAService {
         int tentativas = (int) hashCodigo.get("tentativas");
         if (tentativas >= tentativasMaxCodigo) {
             codigosPendentes.remove(email);
-            return false;
+            throw new RequisicaoInvalidaException("Limite de tentativas excedido. solicite um novo código de verificação.");
         }
 
         // valida se o codigo digitado bate com o HASH armazenado.

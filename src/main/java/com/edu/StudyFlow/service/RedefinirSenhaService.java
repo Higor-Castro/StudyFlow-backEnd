@@ -27,10 +27,10 @@ public class RedefinirSenhaService {
     // Guarda temporariamente o email <chave> e o codigo,data-horario <valor> de 2FA
     private final Map<String, Map> codigosPendentes = new ConcurrentHashMap<>();
 
-    private LogService logService;
-    private UserService userService;
-    private UserRepository userRepository;
-    private EmailService emailService;
+    private final LogService logService;
+    private final UserService userService;
+    private final UserRepository userRepository;
+    private final EmailService emailService;
 
 
     // Injecao do Service via construtor.

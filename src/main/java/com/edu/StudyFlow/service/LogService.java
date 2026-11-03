@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class LogService {
-    private LogRepository logRepository;
+    private final LogRepository logRepository;
 
     // Injecao do repository via construtor.
     public LogService(LogRepository logRepository) {

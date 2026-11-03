@@ -29,13 +29,13 @@ import java.util.Map;
 @RequestMapping("/users")
 public class UserController {
 
-    private UserService userService;
-    private TwoFAService twoFAService;
-    private LogService logService;
-    private LoginTimeService loginTimeService;
-    private JwtService jwtService;
-    private RedefinirSenhaService redefinirSenhaService;
-    private ConsentimentoService consentimentoService;
+    private final UserService userService;
+    private final TwoFAService twoFAService;
+    private final LogService logService;
+    private final LoginTimeService loginTimeService;
+    private final JwtService jwtService;
+    private final RedefinirSenhaService redefinirSenhaService;
+    private final ConsentimentoService consentimentoService;
 
     // Injecao do service via construtor
     public UserController(UserService userService, TwoFAService twoFAService, LogService logService,
@@ -125,8 +125,17 @@ public class UserController {
     // Segunda etapa do login, valida o codigo de 2FA
     @PostMapping("/login/2fa")
     public Map <String,String> loginTwoFA(@Valid @RequestBody TwoFAValidation twoFAValidation){
-        // chama o metodo para validar o codigo informado
-        boolean validar = twoFAService.validarCodigo(twoFAValidation.getEmail(),twoFAValidation.getCodigo());
+
+        boolean validar;
+
+        try {
+            // chama o metodo para validar o codigo informado
+            validar = twoFAService.validarCodigo(twoFAValidation.getEmail(), twoFAValidation.getCodigo());
+        }catch (RequisicaoInvalidaException e) {
+                Log log = new Log("LOGIN_2FA_BLOQUEIO_FALHA",twoFAValidation.getEmail(),"Limite de tentativas de validação do 2FA excedido", LocalDateTime.now());
+                logService.salvarLog(log);
+                throw e;
+        }
         // varrifica se o codigo e valido.
         if (!validar) {
             // salva os logs na tabela

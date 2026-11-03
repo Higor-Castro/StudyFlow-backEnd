@@ -24,9 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class UserService {
-    private UserRepository userRepository;
-    private PasswordEncoder passwordEncoder;
-    private ConsentimentoService consentimentoService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final ConsentimentoService consentimentoService;
 
     // Injecao do repository,encoder e o service via construtor.
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, ConsentimentoService consentimentoService) {
