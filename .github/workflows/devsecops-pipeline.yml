@@ -1,0 +1,378 @@
+# DevSecOps Pipeline
+#
+# Esta esteira automatiza 3 frentes de segurança que manualmente,
+# dependeriam de alguém lembrar de rodar a cada alteração no código:
+#
+#   1) Secrets Scanning (TruffleHog)  -> procura senhas/chaves vazadas
+#   2) SCA              (Trivy)       -> procura CVEs nas dependências
+#   3) SAST             (CodeQL)      -> procura falhas no código-fonte
+#
+# Em qualquer uma dessas 3 frentes, se for encontrado algo de  ALTA ou CRÍTICA, o job falha (exit code != 0) e o GitHub
+# marca o check como vermelho e esse vermelho que, combinado com a proteção de branch, impede o merge na main.
+
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Permite clicar em "Run workflow" manualmente na aba Actions,
+  # sem precisar fazer um commit só para testar o pipeline.
+  workflow_dispatch:
+  schedule:
+    # Executa uma varredura semanal de todo o histórico git para
+    # identificar segredos que possam ter sido expostos em commits
+    # antigos. Complementa a verificação executada em push e pull
+    # request, que (como vamos ver abaixo) olha só o que mudou.
+    - cron: '0 6 * * 1'
+
+# permissions define o que o token automático do GitHub Actions pode fazer.
+permissions:
+  contents: read
+
+jobs:
+  # JOB 1a: Verificação de segredos Roda em TODO push e pull request, mas olha só o que mudou, não o histórico inteiro.
+  secrets-trufflehog:
+    name: Secrets - TruffleHog
+    runs-on: ubuntu-latest
+
+    # Restringe a execução aos eventos de push e pull request,
+    # evitando duplicidade com a verificação completa do histórico.
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout with full Git history
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 baixa o histórico de commits inteiro, não só o
+          # último commit, sem isso o TruffleHog não teria como comparar
+          # "antes" e "depois" para descobrir o que mudou.
+          fetch-depth: 0
+
+      - name: Scan diff for secrets
+        uses: trufflesecurity/trufflehog@v3.93.3
+        with:
+          path: ./
+
+          # base/head dizem ao TruffleHog "compare o commit X com o commit
+          # Y, e me avise se algum segredo apareceu nesse intervalo".
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || (github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '') }}
+          head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+          # --results=verified,unknown: só nos importamos com segredos que
+          # o TruffleHog confirmou como reais (verified) ou que não conseguiu descartar (unknown).
+          extra_args: --results=verified,unknown
+
+  # JOB 1b — Verificação completa do histórico (lenta, mas Detalhada)
+  # Só roda 1x por semana ou quando alguém dispara manualmente.
+  secrets-trufflehog-full:
+    name: Secrets - TruffleHog (histórico completo)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout with full Git history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan full repository history for secrets
+        uses: trufflesecurity/trufflehog@v3.93.3
+        with:
+          path: ./
+
+          # Repare que aqui NÃO passamos "base" nem "head" é exatamente
+          # essa ausência que faz o TruffleHog varrer o histórico
+          # completo do repositório, em vez de só o diff de um push.
+          extra_args: --results=verified,unknown
+
+  # JOB 2: SCA (Software Composition Analysis) com Trivy.
+  # SCA = analisar as bibliotecas de terceiros que o projeto usa e checar se alguma delas tem uma CVE conhecida.
+  sca-trivy:
+    name: SCA - Trivy
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    permissions:
+      contents: read
+      # security-events: write é necessário só para este job conseguir
+      # publicar o relatório no painel "Security" do GitHub.
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      - name: Instalar cosign
+        # Cosign é a ferramenta que usamos para verificar a assinatura
+        # digital do binário do Trivy.
+        uses: sigstore/cosign-installer@v3.9.0
+        with:
+          cosign-release: 'v2.4.3'
+
+      - name: Baixar Trivy v0.69.3 (binário + checksums + assinatura)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=0.69.3
+          BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${VERSION}"
+
+          # Fixar a versão garante que o pipeline sempre se comporte do mesmo jeito, e nos protege de
+          # uma versão nova e não testada quebrar o build sem aviso.
+          
+          curl -fsSL -o "trivy_${VERSION}_Linux-64bit.tar.gz" \
+            "${BASE_URL}/trivy_${VERSION}_Linux-64bit.tar.gz"
+
+          # checksums.txt é um arquivo que lista o "hash" (uma espécie de
+          # impressão digital) de cada arquivo oficial do release.
+          
+          curl -fsSL -o "trivy_${VERSION}_checksums.txt" \
+            "${BASE_URL}/trivy_${VERSION}_checksums.txt"
+
+          # .sigstore.json é o arquivo de assinatura digital do release,
+          # usado no passo de verificação do Cosign.
+          curl -fsSL -o "trivy_${VERSION}_Linux-64bit.tar.gz.sigstore.json" \
+            "${BASE_URL}/trivy_${VERSION}_Linux-64bit.tar.gz.sigstore.json"
+
+      - name: Validar checksum contra o manifesto oficial
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=0.69.3
+          FILE="trivy_${VERSION}_Linux-64bit.tar.gz"
+          CHECKSUMS="trivy_${VERSION}_checksums.txt"
+
+          # Calculamos o hash do arquivo que baixamos e comparamos com o
+          # hash que consta no manifesto oficial. Se os dois hashes não
+          # baterem, significa que o arquivo foi corrompido ou alterado
+          # no caminho e não devemos confiar nele.
+
+          linha="$(grep -F "$FILE" "$CHECKSUMS" || true)"
+
+          if [ -z "$linha" ]; then
+            echo "::error::Checksum de $FILE não encontrado em $CHECKSUMS. Instalação abortada."
+            exit 1
+          fi
+
+          if ! echo "$linha" | sha256sum -c -; then
+            echo "::error::Checksum de $FILE não confere com o manifesto oficial. Instalação abortada."
+            exit 1
+          fi
+
+      - name: Verificar assinatura Sigstore (proveniência oficial)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=0.69.3
+          FILE="trivy_${VERSION}_Linux-64bit.tar.gz"
+
+          # O checksum  só prova que o arquivo não foi
+          # corrompido DEPOIS de baixado. Já esta verificação de
+          # assinatura prova algo mais forte: que o arquivo foi
+          # realmente publicado pelo workflow oficial de release da
+          # Aqua Security no GitHub Actions  ou seja, confirma a
+          # origem/proveniência do binário, não só sua integridade.
+          
+          cosign verify-blob "$FILE" \
+            --new-bundle-format \
+            --bundle "${FILE}.sigstore.json" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            --certificate-identity "https://github.com/aquasecurity/trivy/.github/workflows/reusable-release.yaml@refs/tags/v${VERSION}"
+
+      - name: Instalar o binário validado
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=0.69.3
+
+          # Só chegamos aqui se os dois passos de verificação acima
+          # (checksum e assinatura) tiverem passado  ou seja, só
+          # instalamos um binário que já confirmamos ser confiável.
+          
+          tar -xzf "trivy_${VERSION}_Linux-64bit.tar.gz" trivy
+          sudo install -m 0755 trivy /usr/local/bin/trivy
+
+          trivy --version
+
+      - name: Scan dependencies for HIGH and CRITICAL CVEs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          trivy fs \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --format table \
+            --output trivy-report.txt \
+            .
+
+      - name: Generate SARIF report
+        # if: always() faz este passo rodar mesmo que o anterior tenha
+        # falhado assim o relatório fica disponível para quem for investigar o motivo do bloqueio.
+        if: always()
+        shell: bash
+        run: |
+          # SARIF é um formato padrão que o GitHub sabe interpretar e mostrar de forma
+          # organizada no painel "Security" do repositório.
+          trivy fs \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy-results.sarif \
+            .
+
+      - name: Upload SARIF to GitHub Security
+
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-sca
+
+      - name: Upload Trivy report artifact
+        # Guarda o relatório em texto como um arquivo baixável na aba
+        # Actions, para quem quiser conferir o resultado sem precisar entrar no painel Security.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-sca-report
+          path: trivy-report.txt
+          if-no-files-found: ignore
+
+  # JOB 3: SAST (Static Application Security Testing) com CodeQL
+  # SAST = analisar o CÓDIGO-FONTE em si em busca de padrões perigosos, como SQL Injection,
+  # falhas de controle de acesso, uso inseguro de criptografia, etc.
+  sast-codeql:
+    name: SAST - CodeQL
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    permissions:
+      contents: read
+      # security-events: write permite publicar os achados no painel
+      # Security e actions: read é exigido internamente pela action do
+      # CodeQL para funcionar corretamente.
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+
+          # Precisa ser EXATAMENTE a mesma versão declarada no
+          # <java.version> do pom.xml do projeto.
+          java-version: '25'
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+          # "security-extended" é um pacote de regras mais abrangente do
+          # que o padrão do CodeQL cobre mais categorias de vulnerabilidade, ao custo de um scan um pouco mais demorado.
+          queries: security-extended
+
+      - name: Build application
+        # Linguagens compiladas como Java precisam ser efetivamente
+        # construídas para o CodeQL conseguir montar o mapa semântico
+        # do código.
+        run: mvn -B -DskipTests package
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:java"
+
+          # Define em qual pasta o CodeQL deve salvar o relatório SARIF
+          # localmente, para que o último passo deste job consiga lê e decidir se bloqueia o build ou não.
+          output: codeql-results
+
+          # Mesmo raciocínio do job do Trivy: em PR de fork, o token não
+          # tem permissão de publicar no painel Security. A análise e o
+          # bloqueio continuam normalmente; só a publicação é pulada.
+          upload: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
+      - name: Fail build on HIGH/CRITICAL findings
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Diferente do Trivy e do TruffleHog, o CodeQL por padrão NÃO
+          # bloqueia o build sozinho  ele só publica os achados no
+          # painel Security. 
+
+          # Primeiro, confirmamos que o CodeQL realmente gerou algum
+          # arquivo SARIF. Se não gerou, tratamos isso como uma falha, porque senão um
+          # problema na geração do relatório passaria despercebido como se o código estivesse limpo.
+          mapfile -t sarif_files < <(find codeql-results -type f -name '*.sarif' -print)
+
+          if [ "${#sarif_files[@]}" -eq 0 ]; then
+            echo "::error::CodeQL não gerou arquivos SARIF; não é possível validar os achados."
+            exit 1
+          fi
+
+          total=0
+
+          for f in "${sarif_files[@]}"; do
+            # Esta consulta em jq (uma ferramenta para processar JSON)
+            # percorre cada achado do relatório e decide se ele conta
+            # como "bloqueante":
+            #
+            #  - Se o achado tem uma nota CVSS (security-severity) de
+            #    7.0 ou mais, conta como bloqueante.
+            #  - Se o achado NÃO tem nota CVSS, mas o CodeQL já classificou
+            #    ele como "error" o nível de severidade mais alto da
+            #    própria ferramenta, também conta como bloqueante isso
+            #    evita que um achado grave "escape" só por não ter sido
+            #    etiquetado com uma nota numérica.
+            count=$(jq '
+              [
+                .runs[] as $run
+                | $run.results[]? as $result
+                | ($result.ruleId) as $ruleId
+                | ( [ $run.tool.driver.rules[]? | select(.id == $ruleId) ] | .[0] // {} ) as $rule
+                | (
+                    $result.properties["security-severity"]
+                    // $rule.properties["security-severity"]
+                  ) as $rawSeverity
+                | (
+                    if $rawSeverity == null then null
+                    elif ($rawSeverity | type) == "string" then ($rawSeverity | try tonumber catch null)
+                    else $rawSeverity end
+                  ) as $severity
+                | (
+                    $result.level
+                    // $rule.defaultConfiguration.level
+                    // "warning"
+                  ) as $level
+                | select(
+                    (if $severity != null then $severity >= 7.0 else false end)
+                    or ($severity == null and $level == "error")
+                  )
+              ] | length
+            ' "$f")
+
+            echo "$f -> $count achado(s) bloqueante(s) (CVSS >= 7.0, ou sem CVSS mas marcado como 'error')"
+
+            total=$((total + count))
+          done
+
+          echo "Total de achados bloqueantes: $total"
+
+          # Se encontramos pelo menos 1 achado bloqueante, terminamos
+          # este passo com "exit 1" é isso que faz o job, e o pipeline
+          # como um todo, ficar vermelho.
+          if [ "$total" -gt 0 ]; then
+            echo "::error::CodeQL encontrou achados HIGH/CRITICAL (ou sem severidade, classificados como error). Build bloqueado."
+            exit 1
+          fi
