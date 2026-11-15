@@ -151,6 +151,7 @@ public class UserController {
         return Map.of("mensagem", "Login realizado com sucesso",
                       "token", token);
     }
+
      // Encerra a sessao do usuario (logout), invalidando o token JWT atual para que ele nao possa mais ser usado.
     @PostMapping("/logout")
     public String logout( @RequestHeader("Authorization") String authHeader) {
@@ -171,6 +172,7 @@ public class UserController {
 
         return "Logout realizado com sucesso";
     }
+
     // envia o token para email para recuperacao de senha
     @PostMapping("/senha/recuperar")
     public String solicitarRecuperacao(@RequestBody Map<String, String> body) {
@@ -179,6 +181,7 @@ public class UserController {
         redefinirSenhaService.enviarToken(email);
         return "Token foi enviado para o email informado.";
     }
+
     // valida o token antes de redefinir a senha
     @PostMapping("/senha/validar")
     public String validarToken(@RequestBody Map<String, String> body) {
@@ -215,13 +218,47 @@ public class UserController {
         consentimentoService.revogarConsentimento(email);
         return "Consentimento revogado com sucesso";
     }
+
     // caso usuario queira usar o sistema novamente e nescessario aceitar o consentimento novamente
     @PostMapping("/consentimento/aceitar")
     public String aceitarConsentimento (@RequestBody Map<String, String> body) {
         String email = body.get("email");
-        consentimentoService.registrarConsentimento(email);
-        return "Termo aceito novamente.Login pode ser realizado.";
+        String senha = body.get("senha");
+
+        if (email == null || senha == null) {
+            throw new RequisicaoInvalidaException("Email e senha são obrigatórios");
+        }
+        // chama o metodo para validar se o email esta bloqueado.
+        if (loginTimeService.estaBloqueado(email)) {
+            throw new RequisicaoInvalidaException("Login esta bloqueado, aguarde o tempo de expiração");
+        }
+
+        // Revalida a identidade do usuario.
+        if (userService.validarLogin(email, senha)){
+
+            // registra tentativa errada para o calculo do bloqueio
+            loginTimeService.registrarFalhaLogin(email);
+
+            // salva os logs na tabela
+            Log log = new Log("CONSENTIMENTO_ACEITE_FALHA", email, "Email ou senha invalida", LocalDateTime.now());
+            logService.salvarLog(log);
+
+            throw new RequisicaoInvalidaException("Email ou senha invalida");
+        }
+
+        // Senha correta: reseta o historico de tentativas
+        loginTimeService.retirarBloqueio(email);
+
+        // se ja existe consentimento ativo, nao cria outro registro
+        if (!consentimentoService.temConsentimentoAtivo(email)) {
+            consentimentoService.registrarConsentimento(email);
+            return "Termo aceito novamente. Login pode ser realizado.";
+        }
+        else{
+            return "Já tem consentimento ativo.";
+        }
     }
+
     // consulta os dados usuario
     @GetMapping("/consultar")
     public Map<String, Object> consultarMeusDados(Authentication authentication) {
@@ -252,6 +289,7 @@ public class UserController {
                 .header("Content-Disposition", "attachment; filename=\"meus-dados.json\"")
                 .body(dados);
     }
+
     // deleta a conta e os dados pessoais do usuario
     @DeleteMapping("/deletar")
     public String excluirMeusDados(Authentication authentication) {
@@ -267,6 +305,7 @@ public class UserController {
         logService.salvarLog(log);
         return "Sua conta e seus dados pessoais foram excluídos com sucesso";
     }
+
     // validar a secao do user
     @GetMapping("/validar")
     public String validar() {

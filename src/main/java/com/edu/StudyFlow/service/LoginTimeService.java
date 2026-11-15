@@ -33,6 +33,7 @@ public class LoginTimeService {
     public LoginTimeService(LogService logService) {
         this.logService = logService;
     }
+
     // verrifica se o email esta bloqueado
     public boolean estaBloqueado(String email) {
         LocalDateTime bloqueado = bloqueios.get(email);
