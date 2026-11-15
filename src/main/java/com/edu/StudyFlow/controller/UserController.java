@@ -234,7 +234,7 @@ public class UserController {
         }
 
         // Revalida a identidade do usuario.
-        if (userService.validarLogin(email, senha)){
+        if (!userService.validarLogin(email, senha)){
 
             // registra tentativa errada para o calculo do bloqueio
             loginTimeService.registrarFalhaLogin(email);
