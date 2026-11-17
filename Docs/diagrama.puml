@@ -177,28 +177,29 @@ package "service" #E8F5E9 {
     + excluirDados(String email) : void
   }
 
-  class TwoFAService <<Service>> {
+class TwoFAService <<Service>> {
     - emailService : EmailService
+    - passwordEncoder : PasswordEncoder
     - {static} minutosExpirar : int = 5
-    - codigosPendentes : Map<String, Map>
+    - {static} tentativasMaxCodigo : int = 5
+    - codigosPendentes : Map<String, Map<String, Object>>
 
-    + TwoFAService(EmailService)
+    + TwoFAService(EmailService, PasswordEncoder)
     + gerarCodigo(String email) : void
     + validarCodigo(String email, String codigoDigitado) : boolean
     + {scheduled} limparCodigosExpirados() : void
   }
 
-  class LoginTimeService <<Service>> {
+class LoginTimeService <<Service>> {
     - {static} tentativasMax : int = 5
     - {static} bloqueioMinutos : int = 10
     - logService : LogService
-    - tentativas : Map<String, Integer>
-    - bloqueios : Map<String, LocalDateTime>
+    - loginTentativaRepository : LoginTentativaRepository
 
-    + LoginTimeService(LogService)
-    + estaBloqueado(String email) : boolean
-    + registrarFalhaLogin(String email) : void
-    + retirarBloqueio(String email) : void
+    + LoginTimeService(LogService, LoginTentativaRepository)
+    + estaBloqueado(String email, String ip) : boolean
+    + registrarFalhaLogin(String email, String ip) : void
+    + retirarBloqueio(String email, String ip) : void
     + {scheduled} limparBloqueiosExpirados() : void
   }
 
@@ -312,6 +313,12 @@ package "repository" #FFF8E1 {
     + findByToken(String token) : Optional<TokenInvalidado>
     + removerExpirados(LocalDateTime agora) : void
   }
+
+  interface LoginTentativaRepository <<Repository / extends JpaRepository<LoginTentativa, Long>>> {
+      + findByEmailAndIp(String email, String ip) : Optional<LoginTentativa>
+      + findAllByBloqueadoAteBefore(LocalDateTime data) : List<LoginTentativa>
+      + deleteByEmailAndIp(String email, String ip) : void
+  }
 }
 
 ' Repository -> Entity (parametro de tipo do JpaRepository<Entity, Id> proprio do projeto)
@@ -319,6 +326,7 @@ UserRepository ..> User
 ConsentimentoRepository ..> Consentimento
 LogRepository ..> Log
 TokenInvalidadoRepository ..> TokenInvalidado
+LoginTentativaRepository ..> LoginTentativa
 
 
 ' MODEL
@@ -403,6 +411,26 @@ package "model" #F3E5F5 {
     + getDataExpiracao() : LocalDateTime
     + setDataExpiracao(LocalDateTime dataExpiracao) : void
   }
+
+  class LoginTentativa <<Entity>> {
+      - id : Long
+      - email : String
+      - tentativas : Integer = 0
+      - ip : String
+      - bloqueadoAte : LocalDateTime
+
+      + LoginTentativa()
+      + LoginTentativa(String email, Integer tentativas, String ip)
+      + getId() : Long
+      + getEmail() : String
+      + setEmail(String email) : void
+      + getTentativas() : Integer
+      + setTentativas(Integer tentativas) : void
+      + getBloqueadoAte() : LocalDateTime
+      + setBloqueadoAte(LocalDateTime bloqueadoAte) : void
+      + getIp() : String
+      + setIp(String ip) : void
+    }
 }
 
 
@@ -435,7 +463,9 @@ UserService ..> RequisicaoInvalidaException
 TwoFAService --> EmailService
 
 LoginTimeService --> LogService
+LoginTimeService --> LoginTentativaRepository
 LoginTimeService ..> Log
+LoginTimeService ..> LoginTentativa
 LoginTimeService ..> RequisicaoInvalidaException
 
 RedefinirSenhaService --> LogService
