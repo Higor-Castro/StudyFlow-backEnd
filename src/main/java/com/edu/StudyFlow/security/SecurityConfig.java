@@ -44,7 +44,7 @@ public class SecurityConfig {
                 // nao guarda sessao no servidor: cada requisicao se autentica pelo token JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Exige HTTPS para todas as requisicoes da aplicacao
-                .redirectToHttps(withDefaults())
+                //.redirectToHttps(withDefaults())
                 // Configura quais rotas sao publicas e quais exigem autenticacao
                 .authorizeHttpRequests(auth -> auth
                         // Preflight (OPTIONS) liberado: nao executa logica de negocio, so verifica CORS

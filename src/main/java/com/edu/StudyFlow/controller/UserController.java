@@ -7,6 +7,7 @@ import com.edu.StudyFlow.service.*;
 import com.edu.StudyFlow.validation.RedefinirSenhaValidation;
 import com.edu.StudyFlow.validation.TwoFAValidation;
 import com.edu.StudyFlow.validation.UserCadastroValidation;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -84,9 +85,12 @@ public class UserController {
 
     //Recebe os dados (email e senha) para validacao do login e geracao do 2FA..
     @PostMapping("/login")
-    public String login (@RequestBody UserCadastroValidation userValidation){
+    public String login (@RequestBody UserCadastroValidation userValidation, HttpServletRequest request){
+
+        String ip = request.getRemoteAddr();
+
         // chama o metodo para validar se o email esta bloqueado.
-        boolean validarBloqueio = loginTimeService.estaBloqueado(userValidation.getEmail());
+        boolean validarBloqueio = loginTimeService.estaBloqueado(userValidation.getEmail(),ip);
         if(validarBloqueio) {
             throw new RequisicaoInvalidaException("Login esta bloqueado, aguarde o tempo de expiração");
         }
@@ -95,7 +99,7 @@ public class UserController {
         // verrifica se o usuario e valido.
         if (!validarUsuario) {
             // registra tentativa errada para o calculo do bloqueio
-            loginTimeService.registrarFalhaLogin(userValidation.getEmail());
+            loginTimeService.registrarFalhaLogin(userValidation.getEmail(),ip);
             // salva os logs na tabela
             Log log = new Log("LOGIN_FALHA", userValidation.getEmail(), "Email ou senha invalida", LocalDateTime.now());
             logService.salvarLog(log);
@@ -105,14 +109,14 @@ public class UserController {
         boolean consetimentoAtivo = consentimentoService.temConsentimentoAtivo(userValidation.getEmail());
         if(!consetimentoAtivo) {
             // registra tentativa errada para o calculo do bloqueio
-            loginTimeService.registrarFalhaLogin(userValidation.getEmail());
+            loginTimeService.registrarFalhaLogin(userValidation.getEmail(),ip);
             // salva os logs na tabela
             Log log = new Log("LOGIN_CONSENTIMENTO_FALHA", userValidation.getEmail(),"Login bloqueado: consentimento revogado", LocalDateTime.now());
             logService.salvarLog(log);
             throw new RequisicaoInvalidaException("È necessário aceitar novamente os termos de uso para continuar");
         }
         // Login valido reseta o historico de tentativas erradas
-        loginTimeService.retirarBloqueio(userValidation.getEmail());
+        loginTimeService.retirarBloqueio(userValidation.getEmail(),ip);
 
         // chama o metodo para gerar o codigo autentificacao 2FA.
         twoFAService.gerarCodigo(userValidation.getEmail());
@@ -221,7 +225,10 @@ public class UserController {
 
     // caso usuario queira usar o sistema novamente e nescessario aceitar o consentimento novamente
     @PostMapping("/consentimento/aceitar")
-    public String aceitarConsentimento (@RequestBody Map<String, String> body) {
+    public String aceitarConsentimento (@RequestBody Map<String, String> body, HttpServletRequest request) {
+
+        String ip = request.getRemoteAddr();
+
         String email = body.get("email");
         String senha = body.get("senha");
 
@@ -229,7 +236,7 @@ public class UserController {
             throw new RequisicaoInvalidaException("Email e senha são obrigatórios");
         }
         // chama o metodo para validar se o email esta bloqueado.
-        if (loginTimeService.estaBloqueado(email)) {
+        if (loginTimeService.estaBloqueado(email,ip)) {
             throw new RequisicaoInvalidaException("Login esta bloqueado, aguarde o tempo de expiração");
         }
 
@@ -237,7 +244,7 @@ public class UserController {
         if (!userService.validarLogin(email, senha)){
 
             // registra tentativa errada para o calculo do bloqueio
-            loginTimeService.registrarFalhaLogin(email);
+            loginTimeService.registrarFalhaLogin(email,ip);
 
             // salva os logs na tabela
             Log log = new Log("CONSENTIMENTO_ACEITE_FALHA", email, "Email ou senha invalida", LocalDateTime.now());
@@ -247,7 +254,7 @@ public class UserController {
         }
 
         // Senha correta: reseta o historico de tentativas
-        loginTimeService.retirarBloqueio(email);
+        loginTimeService.retirarBloqueio(email,ip);
 
         // se ja existe consentimento ativo, nao cria outro registro
         if (!consentimentoService.temConsentimentoAtivo(email)) {

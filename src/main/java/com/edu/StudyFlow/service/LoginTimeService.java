@@ -2,12 +2,13 @@ package com.edu.StudyFlow.service;
 
 import com.edu.StudyFlow.exception.RequisicaoInvalidaException;
 import com.edu.StudyFlow.model.Log;
+import com.edu.StudyFlow.model.LoginTentativa;
+import com.edu.StudyFlow.repository.LoginTentativaRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
 
 /*
  * Service tem o papel de concentrar a logica da aplicacao,
@@ -24,28 +25,33 @@ public class LoginTimeService {
     private static final int bloqueioMinutos = 10;
 
     private final LogService logService;
+    private final LoginTentativaRepository loginTentativaRepository;
 
-    //Guarda o email <chave> e as tentativas<valor>
-    private final Map<String, Integer> tentativas = new ConcurrentHashMap<>();
-    //Guarda o email <chave> e a data-horario do bloqueio <valor>
-    private final Map<String, LocalDateTime> bloqueios = new ConcurrentHashMap<>();
     // Injecao do LogService via construtor
-    public LoginTimeService(LogService logService) {
+    public LoginTimeService(LogService logService, LoginTentativaRepository loginTentativaRepository) {
         this.logService = logService;
+        this.loginTentativaRepository = loginTentativaRepository;
+
     }
 
     // verrifica se o email esta bloqueado
-    public boolean estaBloqueado(String email) {
-        LocalDateTime bloqueado = bloqueios.get(email);
+    public boolean estaBloqueado(String email, String ip) {
+
+        Optional<LoginTentativa> bloqueado = loginTentativaRepository.findByEmailAndIp(email,ip);
         // se nao estiver na lista e pq nao esta bloqueado
-        if (bloqueado == null) return false;
+        if (bloqueado.isEmpty()) return false;
+
+        LoginTentativa tentativa = bloqueado.get();
+        LocalDateTime bloqueadoAte = tentativa.getBloqueadoAte();
+
+        // se não tiver valor e pq nao esta bloqueado
+        if (bloqueadoAte == null) return false;
+
         // valida se passou o tempo de bloqueio
-        if(LocalDateTime.now().isAfter(bloqueado.plusMinutes(bloqueioMinutos))) {
-            retirarBloqueio(email);
+        if(!LocalDateTime.now().isBefore(bloqueadoAte)) {
+            retirarBloqueio(email,ip);
             // salva os logs na tabela
-            Log log = new Log("LOGIN_DESBLOQUEADO_SUCESSO", email,
-                    "Bloqueio expirado, usuario liberado para novas tentativas",
-                    LocalDateTime.now());
+            Log log = new Log("LOGIN_DESBLOQUEADO_SUCESSO", email, "Bloqueio expirado, usuario liberado para novas tentativas",LocalDateTime.now());
             logService.salvarLog(log);
             return false;
         }
@@ -54,27 +60,39 @@ public class LoginTimeService {
     }
 
     // Registrar a quantidades de tentativas erradas
-    public void registrarFalhaLogin (String email){
+    public void registrarFalhaLogin (String email, String ip) {
+        LoginTentativa tentativa = loginTentativaRepository.findByEmailAndIp(email,ip).orElseGet(() -> new LoginTentativa(email, 0, ip));
+
         // pega a quantidade de tentativas e acresenta uma nova tentativa
-        int total = tentativas.getOrDefault(email, 0) + 1;
-        tentativas.put(email, total);
+        int total = tentativa.getTentativas() + 1;
+        tentativa.setTentativas(total);
+
         // verrifica se ultrapasou a quantidade de tentativas
         if(total >= tentativasMax){
-            //Adiciona o bloqueio
-            bloqueios.put(email, LocalDateTime.now());
+
+            LocalDateTime agora = LocalDateTime.now();
+
+            // Define o período de bloqueio e Salva
+            tentativa.setBloqueadoAte(agora.plusMinutes(bloqueioMinutos));
+            loginTentativaRepository.save(tentativa);
+
             // salva os logs na tabela
             Log log = new Log("LOGIN_BLOQUEADO_FALHA", email,
                     "Bloqueado por " + bloqueioMinutos + " minutos apos " + total + " tentativas erradas",
-                              LocalDateTime.now());
+                              agora);
             logService.salvarLog(log);
             throw new RequisicaoInvalidaException("Muitas tentativas erradas. Login bloqueado por " + bloqueioMinutos + " minutos");
         }
+
+        // Salva o bloqueio no banco de dados
+        loginTentativaRepository.save(tentativa);
     }
-    // login feito pode retirar as tentativas
-    public void retirarBloqueio (String email){
-        bloqueios.remove(email);
-        tentativas.remove(email);
+
+    // Remove o contador e o bloqueio apos login valido
+    public void retirarBloqueio (String email, String ip) {
+        loginTentativaRepository.deleteByEmailAndIp(email,ip);
     }
+
     /*
      * Remove os email que ja expiraram, mesmo que
      * o usuario nunca tenha tendado validado, roda a cada 5 minutos
@@ -84,21 +102,13 @@ public class LoginTimeService {
      */
     @Scheduled(fixedRate = 300000 )
     public void limparBloqueiosExpirados () {
-        // Percorre os email pendentes e remove aqueles que ja expiraram.
-        bloqueios.entrySet().removeIf( valores -> {
-            boolean expirado = LocalDateTime.now().isAfter(valores.getValue().plusMinutes(bloqueioMinutos));
-            if(expirado){
-                // remove o contador de tentativas do email
-                tentativas.remove(valores.getKey());
-                // Registra a liberacao automatica do bloqueio
-                // salva os logs na tabela
-                Log log = new Log("LOGIN_DESBLOQUEADO", valores.getKey(),
-                        "Bloqueio expirado, removido automaticamente",
-                        LocalDateTime.now());
-                logService.salvarLog(log);
-            }
-            return expirado;
-        });
+        LocalDateTime agora = LocalDateTime.now();
+        var expirados = loginTentativaRepository.findAllByBloqueadoAteBefore(agora);
+        for (LoginTentativa tentativa : expirados) {
+            Log log = new Log("LOGIN_DESBLOQUEADO_SUCESSO", tentativa.getEmail(), "Bloqueio expirado, removido automaticamente", agora);
+            logService.salvarLog(log);
+        }
+        loginTentativaRepository.deleteAll(expirados);
     }
 
 }
