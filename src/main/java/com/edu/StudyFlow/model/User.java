@@ -20,14 +20,13 @@ public class User {
     private long id;
 
     //@Column serve para definir configuracoes da coluna
-    @Column (name = "nome")
+    @Column (nullable = false,name = "nome")
     private String username;
-    @Column (name = "senha")
+    @Column (nullable = false,name = "senha")
     private String password;
 
-    // o nome email ja e igual o da (unique = true), so para documentar.
-    // já esta registrado no banco
-    @Column (unique = true)
+    // o nome email ja e igual o da
+    @Column (nullable = false,unique = true)
     private String email;
 
     // Define o nivel de acesso do usuario, primeiro cadastro sempre USER.

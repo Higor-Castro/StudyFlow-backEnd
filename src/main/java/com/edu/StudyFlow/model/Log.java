@@ -22,13 +22,13 @@ public class Log {
     private long id;
 
     //@Column serve para definir configuracoes da coluna
-    @Column(name = "tipo")
+    @Column(nullable = false, name = "tipo")
     private String type;
-    @Column(name = "email")
+    @Column(nullable = false, name = "email")
     private String email;
-    @Column(name = "mensagem")
+    @Column(nullable = false, name = "mensagem")
     private String mensagem;
-    @Column(name = "data_hora")
+    @Column(nullable = false, name = "data_hora")
     private LocalDateTime dateTime;
 
     // Construtor vazio
