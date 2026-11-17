@@ -12,7 +12,10 @@ import java.time.LocalDateTime;
  */
 
 @Entity
-@Table(name = "login_tentativa")
+@Table(
+        name = "login_tentativa",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"email", "ip"})
+)
 public class LoginTentativa {
     // @Id Chave primária da tabela
     @Id
@@ -21,7 +24,7 @@ public class LoginTentativa {
     private Long id;
 
     //@Column serve para definir configuracoes da coluna
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)
